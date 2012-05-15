@@ -1,0 +1,1 @@
+-define(SERVER_NAME, "test.server").
