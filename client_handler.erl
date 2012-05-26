@@ -28,7 +28,9 @@ handle_info({tcp, Socket, Data}, State) ->
     Params = utils:get_client_params(Data),
     case utils:get_client_command(Data) of
         "PRIVMSG" ->
-            irc:send_to_user(element(1, State), self(), lists:nth(1, Params), lists:nth(2, Params))
+            irc:send_to_user(element(1, State), self(), lists:nth(1, Params), lists:nth(2, Params));
+        _ ->
+            io:format("IGNORE~n")
     end,
     {noreply, State};
 handle_info(Info, State) ->

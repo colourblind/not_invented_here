@@ -8,11 +8,15 @@
 
 send_to_user(Pid, SenderPid, RecipientNick, Message) ->
     Sender = get_user_by_pid(Pid, SenderPid),
-    Recipient = get_user_by_nick(Pid, RecipientNick),
-    Prefix = ":" ++ Sender#user.nick ++ "!" ++ Sender#user.username ++ "@" ++ Sender#user.clientHost,
-    FinalMessage = Prefix ++ " PRIVMSG " ++ Recipient#user.nick ++ " :" ++ Message,
-    io:format("SENDING '~p'~n", [FinalMessage]),
-    client_handler:send_message(Recipient#user.clientPid, FinalMessage).
+    case get_user_by_nick(Pid, RecipientNick) of
+        false ->
+            io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientNick]);
+        Recipient ->
+            Prefix = ":" ++ Sender#user.nick ++ "!" ++ Sender#user.username ++ "@" ++ Sender#user.clientHost,
+            FinalMessage = Prefix ++ " PRIVMSG " ++ Recipient#user.nick ++ " :" ++ Message,
+            io:format("SENDING '~p'~n", [FinalMessage]),
+            client_handler:send_message(Recipient#user.clientPid, FinalMessage)
+    end.
 
 get_user_by_nick(Pid, Nick) ->
     gen_server:call(Pid, {get_user, Nick}).
