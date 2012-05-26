@@ -9,7 +9,8 @@
 send_to_user(Pid, SenderPid, RecipientNick, Message) ->
     Sender = get_user_by_pid(Pid, SenderPid),
     Recipient = get_user_by_nick(Pid, RecipientNick),
-    FinalMessage = ":" ++ Sender#user.nick ++ " PRIVMSG " ++ Recipient#user.nick ++ " :" ++ Message,
+    Prefix = ":" ++ Sender#user.nick ++ "!" ++ Sender#user.username ++ "@" ++ Sender#user.clientHost,
+    FinalMessage = Prefix ++ " PRIVMSG " ++ Recipient#user.nick ++ " :" ++ Message,
     io:format("SENDING '~p'~n", [FinalMessage]),
     client_handler:send_message(Recipient#user.clientPid, FinalMessage).
 
