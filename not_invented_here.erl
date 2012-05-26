@@ -1,6 +1,7 @@
 -module(not_invented_here).
 
 -include("config.hrl").
+-include("records.hrl").
 
 -export([start/0, start/1]).
 
@@ -9,16 +10,18 @@ start() ->
     
 start(Port) ->
     io:format("Starting up~n"),
+    {ok, ServerPid} = irc:start_link(),
+    io:format("Created server process ~p~n", [ServerPid]),
     {ok, LSocket} = gen_tcp:listen(Port, [{active, false}, {packet, line}]),
-    listener(LSocket).
+    listener(LSocket, ServerPid).
     
-listener(LSocket) ->
+listener(LSocket, ServerPid) ->
     io:format("Listening~n"),
     case gen_tcp:accept(LSocket) of
         {ok, Socket} ->
-            io:format("Got connection~p~n", [Socket]),
-            welcome(Socket),
-            {ok, Pid} = client_handler:start_link(self(), Socket),
+            {Nick, Username, ClientHost, ServerName, RealName} = welcome(Socket),
+            {ok, Pid} = client_handler:start_link(ServerPid, Socket),
+            irc:add_user(ServerPid, #user{nick=Nick, clientPid=Pid, username=Username, clientHost=ClientHost, serverName=ServerName, realName=RealName}),
             io:format("Created client ~p~n", [Pid]),
             inet:setopts(Socket, [{active, true}]),
             % Chance of losing messages before we switch controlling process? :-/
@@ -28,15 +31,15 @@ listener(LSocket) ->
                 {error, Reason} ->
                     io:format("Control for socket ~p transfer failed! ~p~n", [Socket, Reason])
             end,
-            listener(LSocket);
+            listener(LSocket, ServerPid);
         {error, Reason} ->
             io:format("Accept error: ~p~n", [Reason]),
             gen_tcp:close(LSocket)
     end.
     
 welcome(Socket) ->
-    send(Socket, "NOTICE AUTH :*** Checking Ident\r\n"),
-    send(Socket, "NOTICE AUTH :*** No ident response\r\n"),
+    % send(Socket, "NOTICE AUTH :*** Checking Ident\r\n"),
+    % send(Socket, "NOTICE AUTH :*** No ident response\r\n"),
     {ok, NickLine} = gen_tcp:recv(Socket, 0),
     io:format("NICKLINE = ~p~n", [NickLine]),
     Nick = lists:nth(2, string:tokens(NickLine, " \n")),
@@ -48,6 +51,7 @@ welcome(Socket) ->
     ServerName = lists:nth(4, UserTokens),
     RealName = lists:nth(5, UserTokens),
     io:format("USER = ~p ~p ~p ~p~n", [Username, ClientHost, ServerName, RealName]),
+    
     % check NICK
     % store NICK if good
     % collect USER details
@@ -61,7 +65,8 @@ welcome(Socket) ->
     send(Socket, "PING :" ++ ?SERVER_NAME ++ "\r\n"),
     wait(Socket),
     % move to handler (handle USERHOST
-    send(Socket, ":" ++ ?SERVER_NAME ++ " 302 " ++ Nick ++ " :" ++ Nick ++ "=+~" ++ Username ++ "@" ++ ?SERVER_NAME ++ "\r\n").
+    send(Socket, ":" ++ ?SERVER_NAME ++ " 302 " ++ Nick ++ " :" ++ Nick ++ "=+~" ++ Username ++ "@" ++ ?SERVER_NAME ++ "\r\n"),
+    {Nick, Username, ClientHost, ServerName, RealName}.
 
     
 wait(Socket) ->

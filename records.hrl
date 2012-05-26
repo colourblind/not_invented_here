@@ -1,0 +1,2 @@
+-record(channel, {name, topic}).
+-record(user, {nick, clientPid, username, clientHost, serverName, realName}).
