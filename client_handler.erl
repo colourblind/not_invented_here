@@ -29,6 +29,11 @@ handle_info({tcp, Socket, Data}, State) ->
     case utils:get_client_command(Data) of
         "PRIVMSG" ->
             irc:send_to_user(element(1, State), self(), lists:nth(1, Params), lists:nth(2, Params));
+        "JOIN" ->
+            irc:join_channel(element(1, State), self(), lists:nth(1, Params));
+        "PING" ->
+            io:format("Reponding to client PING~n"),
+            gen_tcp:send(element(2, State), "PONG :" ++ lists:nth(1, Params) ++ "\n");
         _ ->
             io:format("IGNORE~n")
     end,

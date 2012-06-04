@@ -10,14 +10,16 @@ get_server_command(Message) ->
     hd(tl(string:tokens(Message, " "))).
     
 get_server_params(Message) ->
-    Params = string:join(tl(tl(string:tokens(Message, " "))), " "),
+    Trimmed = string:strip(Message, right, $\n),
+    Params = string:join(tl(tl(string:tokens(Trimmed, " "))), " "),
     reconstruct(string:tokens(Params, " ")).
 
 get_client_command(Message) ->
     hd(string:tokens(Message, " ")).
     
 get_client_params(Message) ->
-    Params = string:join(tl(string:tokens(Message, " ")), " "),
+    Trimmed = string:strip(Message, right, $\n),
+    Params = string:join(tl(string:tokens(Trimmed, " ")), " "),
     reconstruct(string:tokens(Params, " ")).
 
     
