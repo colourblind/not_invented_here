@@ -41,9 +41,8 @@ welcome(Socket) ->
     % send(Socket, "NOTICE AUTH :*** Checking Ident\r\n"),
     % send(Socket, "NOTICE AUTH :*** No ident response\r\n"),
     {ok, NickLine} = gen_tcp:recv(Socket, 0),
-    io:format("NICKLINE = ~p~n", [NickLine]),
     Nick = lists:nth(2, string:tokens(NickLine, " \n")),
-    io:format("NICK = ~p~n", [Nick]),
+    % TODO: check Nick collisions
     {ok, UserLine} = gen_tcp:recv(Socket, 0),
     UserTokens = string:tokens(UserLine, " \n"),
     Username = lists:nth(2, UserTokens),
@@ -51,24 +50,17 @@ welcome(Socket) ->
     ServerName = lists:nth(4, UserTokens),
     RealName = lists:nth(5, UserTokens),
     io:format("USER = ~p ~p ~p ~p~n", [Username, ClientHost, ServerName, RealName]),
-    
-    % check NICK
-    % store NICK if good
-    % collect USER details
     send(Socket, "PING :123456789\r\n"),
     wait(Socket),
-    % check PING response
-    % send server details
+    % TODO: check PING response
     send(Socket, ":" ++ ?SERVER_NAME ++ " 001 " ++ Nick ++ " :Welcome to " ++ ?SERVER_NAME ++ "\r\n"),
     send(Socket, ":" ++ ?SERVER_NAME ++ " 002 " ++ Nick ++ " :Powered by not_invented_here\r\n"),
-    % DONE
     send(Socket, "PING :" ++ ?SERVER_NAME ++ "\r\n"),
     wait(Socket),
-    % move to handler (handle USERHOST
+    % TODO: check PING response    
     send(Socket, ":" ++ ?SERVER_NAME ++ " 302 " ++ Nick ++ " :" ++ Nick ++ "=+~" ++ Username ++ "@" ++ ?SERVER_NAME ++ "\r\n"),
     {Nick, Username, ClientHost, ServerName, RealName}.
 
-    
 wait(Socket) ->
     case gen_tcp:recv(Socket, 0, 200) of
         {ok, Packet} ->
@@ -81,10 +73,3 @@ wait(Socket) ->
 send(Socket, Data) ->
     io:format("<- ~p~n", [Data]),
     gen_tcp:send(Socket, Data).
-    
-% -> NICK nick
-% -> USER username host server.name realname
-% <- PING :123456789
-% -> PONG 123456789
-% <- :server.name 001 :Here goes a load of text
-% <- :server.name 002 :and some more
