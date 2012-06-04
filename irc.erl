@@ -5,9 +5,9 @@
 -include("records.hrl").
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([send_to_user/4, join_channel/3, send_to_channel/4, add_user/2, start_link/0]).
+-export([send_message/4, join_channel/3, add_user/2, start_link/0]).
 
-send_to_user(Pid, SenderPid, RecipientNick, Message) ->
+send_message(Pid, SenderPid, Recipient, Message) ->
     case Message of
         "EXPLODE" ->
             erlang:error("Because");
@@ -16,6 +16,16 @@ send_to_user(Pid, SenderPid, RecipientNick, Message) ->
     end,
 
     Sender = get_user_by_pid(Pid, SenderPid),
+    case hd(Recipient) of
+        $# ->
+            send_to_channel(Pid, Sender, Recipient, Message);
+        $& ->
+            send_to_channel(Pid, Sender, Recipient, Message);
+        _ ->
+            send_to_user(Pid, Sender, Recipient, Message)
+    end.
+    
+send_to_user(Pid, Sender, RecipientNick, Message) ->
     case get_user_by_nick(Pid, RecipientNick) of
         false ->
             io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientNick]);
@@ -26,23 +36,25 @@ send_to_user(Pid, SenderPid, RecipientNick, Message) ->
             client_handler:send_message(Recipient#user.clientPid, FinalMessage)
     end.
     
+send_to_channel(Pid, Sender, RecipientChannel, Message) ->
+    case get_channel(Pid, RecipientChannel) of
+        false ->
+            io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientChannel]);
+        Channel ->
+            Prefix = ":" ++ Sender#user.nick ++ "!" ++ Sender#user.username ++ "@" ++ Sender#user.clientHost,
+            FinalMessage = Prefix ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
+            io:format("SENDING '~p'~n", [FinalMessage]),
+            UserList = lists:delete(Sender, lists:map(fun(Nick) -> get_user_by_nick(Pid, Nick) end, Channel#channel.users)),
+            lists:foreach(fun(User) -> client_handler:send_message(User#user.clientPid, FinalMessage) end, UserList)
+    end.
+    
 join_channel(Pid, SenderPid, ChannelName) ->
     Sender = get_user_by_pid(Pid, SenderPid),
     gen_server:cast(Pid, {join_channel, ChannelName, Sender}).
-    
-send_to_channel(Pid, SenderPid, Channel, Message) ->
-    Sender = get_user_by_pid(Pid, SenderPid),
-    case get_user_list(Pid, Channel) of
-        false ->
-            io:format("CANNOT FIND CHANNEL ~p~n", [Channel]);
-        UserList ->
-            Prefix = ":" ++ Sender#user.nick ++ "!" ++ Sender#user.username ++ "@" ++ Sender#user.clientHost,
-            FinalMessage = Prefix ++ " PRIVMSG " ++ Channel ++ " :" ++ Message ++ "\r\n",
-            lists:foreach(fun(User) -> client_handler:send_message(User#user.clientPid, FinalMessage) end, UserList)
-    end.
 
 get_user_by_nick(Pid, Nick) ->
-    gen_server:call(Pid, {get_user, Nick}).
+    gen_server:call(Pid, {get_user, utils:normalise_nick(Nick)}).
+           
 get_user_by_pid(Pid, ClientPid) ->
     gen_server:call(Pid, {get_user, ClientPid}).
 
@@ -86,7 +98,6 @@ handle_call(Request, {Pid, Tag}, State) ->
 handle_cast({join_channel, ChannelName, User}, State) ->
     io:format("Adding ~p to channel ~p~n", [User#user.nick, ChannelName]),
     Channel = lists:keyfind(ChannelName, 2, element(2, State)),
-    io:format("Channel: ~p~n", [Channel]),
     case Channel of
         false ->
             io:format("Creating channel ~p~n", [ChannelName]),
@@ -98,10 +109,10 @@ handle_cast({join_channel, ChannelName, User}, State) ->
     end,
     Prefix = ":" ++ User#user.nick ++ "!" ++ User#user.username ++ "@" ++ User#user.clientHost,
     FinalMessage = Prefix ++ " JOIN " ++ " :"  ++ NewChan#channel.name ++ "\r\n",
-    client_handler:send_message(User#user.clientPid, FinalMessage),
+    UserList = lists:map(fun(Nick) -> lists:keyfind(utils:normalise_nick(Nick), 2, element(1, State)) end, NewChan#channel.users),
+    lists:foreach(fun(User) -> client_handler:send_message(User#user.clientPid, FinalMessage) end, UserList),
     client_handler:send_message(User#user.clientPid, ":" ++ ?SERVER_NAME ++ " 353 " ++ User#user.nick ++ " " ++ ChannelName ++ " :" ++ string:join(NewChan#channel.users, " ") ++ "\r\n"),
     client_handler:send_message(User#user.clientPid, ":" ++ ?SERVER_NAME ++ " 366 " ++ User#user.nick ++ " " ++ ChannelName ++ " :End of /NAMES list.\r\n"),
-%    lists:foreach(fun(User) -> client_handler:send_message(User#user.clientPid, FinalMessage) end, UserList)
     io:format("~p~n", [NewState]),
     {noreply, NewState};
 handle_cast(Request, State) ->

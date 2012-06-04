@@ -2,6 +2,7 @@
 
 -export([get_server_prefix/1, get_server_command/1, get_server_params/1]).
 -export([get_client_command/1, get_client_params/1]).
+-export([normalise_nick/1]).
 
 get_server_prefix(Message) ->
     hd(string:tokens(Message, " ")).
@@ -21,6 +22,14 @@ get_client_params(Message) ->
     Trimmed = string:strip(Message, right, $\n),
     Params = string:join(tl(string:tokens(Trimmed, " ")), " "),
     reconstruct(string:tokens(Params, " ")).
+
+normalise_nick(Nick) ->
+    case hd(Nick) of
+        $@ ->
+            string:strip(Nick, left, $@);
+        _ ->
+            Nick
+    end.
 
     
 reconstruct([]) ->
