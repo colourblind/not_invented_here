@@ -40,10 +40,10 @@ listener(LSocket, ServerPid) ->
 welcome(Socket) ->
     % send(Socket, "NOTICE AUTH :*** Checking Ident\r\n"),
     % send(Socket, "NOTICE AUTH :*** No ident response\r\n"),
-    {ok, NickLine} = gen_tcp:recv(Socket, 0),
+    {ok, NickLine} = wait(Socket, "NICK "),
     Nick = lists:nth(2, string:tokens(NickLine, " \n")),
     % TODO: check Nick collisions
-    {ok, UserLine} = gen_tcp:recv(Socket, 0),
+    {ok, UserLine} = wait(Socket, "USER "),
     UserTokens = string:tokens(UserLine, " \n"),
     Username = lists:nth(2, UserTokens),
     ClientHost = lists:nth(3, UserTokens),
@@ -63,11 +63,23 @@ welcome(Socket) ->
 
 wait(Socket) ->
     case gen_tcp:recv(Socket, 0, 200) of
-        {ok, Packet} ->
-            io:format("-> ~p~n", [Packet]),
+        {ok, _} ->
             wait(Socket);
-        {error, Reason} ->
-            io:format("Recv empty! Bailing! (~p)~n", [Reason])
+        {error, _} ->
+            ok
+    end.
+            
+wait(Socket, Until) ->
+    case gen_tcp:recv(Socket, 0, 200) of
+        {ok, Packet} ->
+            case string:equal(string:left(Packet, string:len(Until)), Until) of 
+                true ->
+                    {ok, Packet};
+                false ->
+                    wait(Socket, Until)
+            end;
+        {error, _} ->
+            wait(Socket, Until)
     end.    
     
 send(Socket, Data) ->
