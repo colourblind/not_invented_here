@@ -10,7 +10,7 @@ start() ->
     
 start(Port) ->
     io:format("Starting up~n"),
-    {ok, ServerPid} = irc:start_link(),
+    {ok, ServerPid} = state:start_link(),
     io:format("Created server process ~p~n", [ServerPid]),
     {ok, LSocket} = gen_tcp:listen(Port, [{active, false}, {packet, line}]),
     listener(LSocket, ServerPid).
@@ -21,7 +21,7 @@ listener(LSocket, ServerPid) ->
         {ok, Socket} ->
             {Nick, Username, ClientHost, ServerName, RealName} = welcome(Socket),
             {ok, Pid} = client_handler:start_link(ServerPid, Socket),
-            irc:add_user(ServerPid, #user{nick=Nick, clientPid=Pid, username=Username, clientHost=ClientHost, serverName=ServerName, realName=RealName}),
+            state:add_user(ServerPid, #user{nick=Nick, clientPid=Pid, username=Username, clientHost=ClientHost, serverName=ServerName, realName=RealName}),
             io:format("Created client ~p~n", [Pid]),
             inet:setopts(Socket, [{active, true}]),
             % Chance of losing messages before we switch controlling process? :-/
