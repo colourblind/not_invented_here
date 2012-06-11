@@ -3,7 +3,7 @@
 -include("config.hrl").
 -include("records.hrl").
 
--export([send_message/4, join_channel/3]).
+-export([send_message/4, join_channel/3, part_channel/3]).
 
 send_message(Pid, SenderPid, Recipient, Message) ->
     case Message of
@@ -63,3 +63,14 @@ join_channel(Pid, SenderPid, ChannelName) ->
     client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 353 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ string:join(Channel#channel.users, " ") ++ "\r\n"),
     client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 366 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :End of /NAMES list.\r\n"),
     ok.
+
+part_channel(Pid, SenderPid, ChannelName) ->
+    Sender = state:get_user_by_pid(Pid, SenderPid),
+    case state:part_channel(Pid, ChannelName, Sender) of
+        false ->
+            io:format("Attempt to leave unknown channel: ~p ~p~n", [Sender#user.nick, ChannelName]);
+        ok ->
+            Prefix = ":" ++ Sender#user.nick ++ "!" ++ Sender#user.username ++ "@" ++ Sender#user.clientHost,
+            FinalMessage = Prefix ++ " PART " ++ " :"  ++ ChannelName ++ "\r\n",
+            send_raw_to_channel(Pid, ChannelName, FinalMessage)
+    end.

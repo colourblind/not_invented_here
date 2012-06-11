@@ -4,7 +4,7 @@
 -include("records.hrl").
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([get_user_by_nick/2, get_user_by_pid/2, get_channel/2, add_user/2, join_channel/3, start_link/0]).
+-export([get_user_by_nick/2, get_user_by_pid/2, get_channel/2, add_user/2, join_channel/3, part_channel/3, start_link/0]).
 
 get_user_by_nick(Pid, Nick) ->
     gen_server:call(Pid, {get_user, utils:normalise_nick(Nick)}).
@@ -21,7 +21,9 @@ add_user(Pid, User) ->
     
 join_channel(Pid, ChannelName, User) ->
     gen_server:call(Pid, {join_channel, ChannelName, User}).
-
+    
+part_channel(Pid, ChannelName, User) ->
+    gen_server:call(Pid, {part_channel, ChannelName, User}).
 
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
@@ -55,6 +57,18 @@ handle_call({join_channel, ChannelName, User}, _, State) ->
             NewState = {element(1, State), lists:keyreplace(ChannelName, 2, element(2, State), NewChan)}
     end,
     {reply, NewChan, NewState};
+handle_call({part_channel, ChannelName, User}, _, State) ->
+    Channel = lists:keyfind(ChannelName, 2, element(2, State)),
+    case Channel of
+        false ->
+            NewState = State,
+            Result = false;
+        _ ->
+            NewChan = setelement(4, Channel, lists:delete(User#user.nick, Channel#channel.users)),
+            NewState = {element(1, State), lists:keyreplace(ChannelName, 2, element(2, State), NewChan)},
+            Result = ok
+    end,
+    {reply, Result, NewState};
 handle_call(Request, _, State) ->
     io:format("HANDLE_CALL: ~p~n", Request),
     {noreply, State}.
