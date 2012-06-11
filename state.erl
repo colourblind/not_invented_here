@@ -4,7 +4,7 @@
 -include("records.hrl").
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([get_user_by_nick/2, get_user_by_pid/2, get_channel/2, get_user_list/2, add_user/2, join_channel/3, start_link/0]).
+-export([get_user_by_nick/2, get_user_by_pid/2, get_channel/2, add_user/2, join_channel/3, start_link/0]).
 
 get_user_by_nick(Pid, Nick) ->
     gen_server:call(Pid, {get_user, utils:normalise_nick(Nick)}).
@@ -15,9 +15,6 @@ get_user_by_pid(Pid, ClientPid) ->
 get_channel(Pid, ChannelName) ->
     io:format("get_channel: ~p~n", [ChannelName]),
     gen_server:call(Pid, {get_channel, ChannelName}).
-    
-get_user_list(Pid, Channel) ->
-    gen_server:call(Pid, {get_user_list, Channel}).
     
 add_user(Pid, User) ->
     gen_server:call(Pid, {add_user, User}).
@@ -38,12 +35,9 @@ handle_call({get_user, Pid}, _, State) when is_pid(Pid) ->
 handle_call({get_user, Nick}, _, State) ->
     User = lists:keyfind(Nick, 2, element(1, State)),
     {reply, User, State};
-
 handle_call({get_channel, ChannelName}, _, State) ->
     Channel = lists:keyfind(ChannelName, 2, element(2, State)),
     {reply, Channel, State};
-handle_call({get_user_list, Channel}, _, State) ->
-    {reply, element(1, State), State};
 handle_call({add_user, User}, _, State) ->
     io:format("ADD USER ~p~n", [User]),
     NewState = {lists:append(element(1, State), [User]), element(2, State)},
@@ -61,18 +55,18 @@ handle_call({join_channel, ChannelName, User}, _, State) ->
             NewState = {element(1, State), lists:keyreplace(ChannelName, 2, element(2, State), NewChan)}
     end,
     {reply, NewChan, NewState};
-handle_call(Request, {Pid, Tag}, State) ->
+handle_call(Request, _, State) ->
     io:format("HANDLE_CALL: ~p~n", Request),
     {noreply, State}.
     
-handle_cast(Request, State) ->
+handle_cast(_, State) ->
     {noreply, State}.
 
-handle_info(Info, State) ->
+handle_info(_, State) ->
     {noreply, State}.
 
-terminate(Reason, State) ->
+terminate(_, _) ->
     ok.
 
-code_change(OldVsn, State, Extra) ->
+code_change(_, State, _) ->
     {ok, State}.
