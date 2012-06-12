@@ -27,8 +27,7 @@ send_to_user(Pid, Sender, RecipientNick, Message) ->
         false ->
             io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientNick]);
         Recipient ->
-            Prefix = ":" ++ Sender#user.nick ++ "!" ++ Sender#user.username ++ "@" ++ Sender#user.clientHost,
-            FinalMessage = Prefix ++ " PRIVMSG " ++ Recipient#user.nick ++ " :" ++ Message ++ "\r\n",
+            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Recipient#user.nick ++ " :" ++ Message ++ "\r\n",
             io:format("SENDING '~p'~n", [FinalMessage]),
             client_handler:send_message(Recipient#user.clientPid, FinalMessage)
     end.
@@ -38,8 +37,7 @@ send_to_channel(Pid, Sender, RecipientChannel, Message) ->
         false ->
             io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientChannel]);
         Channel ->
-            Prefix = ":" ++ Sender#user.nick ++ "!" ++ Sender#user.username ++ "@" ++ Sender#user.clientHost,
-            FinalMessage = Prefix ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
+            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
             io:format("SENDING '~p'~n", [FinalMessage]),
             UserList = lists:delete(Sender, lists:map(fun(Nick) -> state:get_user_by_nick(Pid, Nick) end, Channel#channel.users)),
             lists:foreach(fun(User) -> client_handler:send_message(User#user.clientPid, FinalMessage) end, UserList)
@@ -57,8 +55,7 @@ send_raw_to_channel(Pid, RecipientChannel, Message) ->
 join_channel(Pid, SenderPid, ChannelName) ->
     Sender = state:get_user_by_pid(Pid, SenderPid),
     Channel = state:join_channel(Pid, ChannelName, Sender),
-    Prefix = ":" ++ Sender#user.nick ++ "!" ++ Sender#user.username ++ "@" ++ Sender#user.clientHost,
-    FinalMessage = Prefix ++ " JOIN " ++ " :"  ++ Channel#channel.name ++ "\r\n",
+    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " JOIN " ++ " :"  ++ Channel#channel.name ++ "\r\n",
     send_raw_to_channel(Pid, ChannelName, FinalMessage),
     client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 353 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ string:join(Channel#channel.users, " ") ++ "\r\n"),
     client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 366 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :End of /NAMES list.\r\n"),
@@ -70,7 +67,6 @@ part_channel(Pid, SenderPid, ChannelName) ->
         false ->
             io:format("Attempt to leave unknown channel: ~p ~p~n", [Sender#user.nick, ChannelName]);
         ok ->
-            Prefix = ":" ++ Sender#user.nick ++ "!" ++ Sender#user.username ++ "@" ++ Sender#user.clientHost,
-            FinalMessage = Prefix ++ " PART " ++ " :"  ++ ChannelName ++ "\r\n",
+            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PART " ++ " :"  ++ ChannelName ++ "\r\n",
             send_raw_to_channel(Pid, ChannelName, FinalMessage)
     end.
