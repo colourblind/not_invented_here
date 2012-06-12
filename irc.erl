@@ -3,7 +3,7 @@
 -include("config.hrl").
 -include("records.hrl").
 
--export([send_message/4, join_channel/3, part_channel/3, quit/3]).
+-export([send_message/4, join_channel/3, part_channel/3, mode/3, topic/3, quit/3]).
 
 send_message(Pid, SenderPid, Recipient, Message) ->
     case Message of
@@ -12,7 +12,7 @@ send_message(Pid, SenderPid, Recipient, Message) ->
         _ ->
             pass
     end,
-    Sender = state:get_user_by_pid(Pid, SenderPid),
+    Sender = state:get_user(Pid, SenderPid),
     case hd(Recipient) of
         $# ->
             send_to_channel(Pid, Sender, Recipient, Message);
@@ -23,7 +23,7 @@ send_message(Pid, SenderPid, Recipient, Message) ->
     end.
     
 send_to_user(Pid, Sender, RecipientNick, Message) ->
-    case state:get_user_by_nick(Pid, RecipientNick) of
+    case state:get_user(Pid, RecipientNick) of
         false ->
             io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientNick]);
         Recipient ->
@@ -39,7 +39,7 @@ send_to_channel(Pid, Sender, RecipientChannel, Message) ->
         Channel ->
             FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
             io:format("SENDING '~p'~n", [FinalMessage]),
-            UserList = lists:delete(Sender, lists:map(fun(Nick) -> state:get_user_by_nick(Pid, Nick) end, Channel#channel.users)),
+            UserList = lists:delete(Sender, lists:map(fun(Nick) -> state:get_user(Pid, Nick) end, Channel#channel.users)),
             lists:foreach(fun(User) -> client_handler:send_message(User#user.clientPid, FinalMessage) end, UserList)
     end.
     
@@ -48,22 +48,23 @@ send_raw_to_channel(Pid, RecipientChannel, Message) ->
         false ->
             io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientChannel]);
         Channel ->
-            UserList = lists:map(fun(Nick) -> state:get_user_by_nick(Pid, Nick) end, Channel#channel.users),
+            UserList = lists:map(fun(Nick) -> state:get_user(Pid, Nick) end, Channel#channel.users),
             io:format("UserList: ~p~n", [UserList]),
             lists:foreach(fun(User) -> client_handler:send_message(User#user.clientPid, Message) end, UserList)
     end.
     
 join_channel(Pid, SenderPid, ChannelName) ->
-    Sender = state:get_user_by_pid(Pid, SenderPid),
+    Sender = state:get_user(Pid, SenderPid),
     Channel = state:join_channel(Pid, ChannelName, Sender),
     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " JOIN " ++ " :"  ++ Channel#channel.name ++ "\r\n",
     send_raw_to_channel(Pid, ChannelName, FinalMessage),
     client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 353 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ string:join(Channel#channel.users, " ") ++ "\r\n"),
     client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 366 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :End of /NAMES list.\r\n"),
+    topic(Pid, SenderPid, ChannelName),
     ok.
 
 part_channel(Pid, SenderPid, ChannelName) ->
-    Sender = state:get_user_by_pid(Pid, SenderPid),
+    Sender = state:get_user(Pid, SenderPid),
     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PART " ++ " :"  ++ ChannelName ++ "\r\n",
     send_raw_to_channel(Pid, ChannelName, FinalMessage),
     case state:part_channel(Pid, ChannelName, Sender) of
@@ -72,9 +73,27 @@ part_channel(Pid, SenderPid, ChannelName) ->
         ok ->
             ok
     end.
+    
+mode(Pid, SenderPid, ChannelName) ->
+    Sender = state:get_user(Pid, SenderPid),
+    Channel = state:get_channel(Pid, ChannelName),
+    FinalMessage = ":" ++ ?SERVER_NAME ++ " 324 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " +" ++ Channel#channel.mode ++ "\r\n",
+    io:format("~p~n", [FinalMessage]),
+    client_handler:send_message(SenderPid, FinalMessage).
+    
+topic(Pid, SenderPid, ChannelName) ->
+    Sender = state:get_user(Pid, SenderPid),
+    Channel = state:get_channel(Pid, ChannelName),
+    case Channel#channel.topic of
+        "" ->
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 331 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No topic is set\r\n";
+        T ->
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 332 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ T ++ "\r\n"
+    end,
+    client_handler:send_message(SenderPid, FinalMessage).
 
 quit(Pid, SenderPid, Reason) ->
-    Sender = state:get_user_by_pid(Pid, SenderPid),
+    Sender = state:get_user(Pid, SenderPid),
     ChannelList = state:get_channels_for_user(Pid, Sender),
     lists:foreach(fun(Channel) -> state:part_channel(Pid, Channel#channel.name, Sender) end, ChannelList),
     state:remove_user(Pid, Sender),

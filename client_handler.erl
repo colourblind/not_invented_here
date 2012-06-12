@@ -35,6 +35,10 @@ handle_info({tcp, Socket, Data}, State) ->
             irc:join_channel(element(1, State), self(), lists:nth(1, Params));
         "PART" ->
             irc:part_channel(element(1, State), self(), lists:nth(1, Params));
+        "MODE" ->
+            irc:mode(element(1, State), self(), lists:nth(1, Params));
+        "TOPIC" ->
+            irc:topic(element(1, State), self(), lists:nth(1, Params));
         "QUIT" ->
             irc:quit(element(1, State), self(), lists:nth(1, Params)),
             gen_tcp:close(Socket),

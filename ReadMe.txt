@@ -1,11 +1,11 @@
 A terrible, low-feature, non-RFC1459-compliant IRC server written in Erlang.
 
 TODO:
+- Crash on TOPIC/PART with incorrect channel
 - Nick collision checks
-- Handle QUIT (and tcp_closed)
+- Handle tcp_closed
 - Handle NICK changes
 - Server-to-client PINGs
-- TOPIC
 - NAMES
 - LIST
 - WHOIS

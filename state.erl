@@ -4,16 +4,13 @@
 -include("records.hrl").
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([get_user_by_nick/2, get_user_by_pid/2, get_channel/2, get_channels_for_user/2]).
+-export([get_user/2, get_channel/2, get_channels_for_user/2]).
 -export([add_user/2, remove_user/2, join_channel/3, part_channel/3]).
 -export([start_link/0]).
 
-get_user_by_nick(Pid, Nick) ->
-    gen_server:call(Pid, {get_user, Nick}).
+get_user(Pid, Id) ->
+    gen_server:call(Pid, {get_user, Id}).
            
-get_user_by_pid(Pid, ClientPid) ->
-    gen_server:call(Pid, {get_user, ClientPid}).
-
 get_channel(Pid, ChannelName) ->
     gen_server:call(Pid, {get_channel, ChannelName}).
     
@@ -62,7 +59,7 @@ handle_call({join_channel, ChannelName, User}, _, State) ->
     case Channel of
         false ->
             io:format("Creating channel ~p~n", [ChannelName]),
-            NewChan = #channel{name=ChannelName, topic="Test topic", users=[User#user.nick]}, 
+            NewChan = #channel{name=ChannelName, topic="Test topic", users=[User#user.nick], mode="nt"}, 
             % set up user as chanop
             NewState = {element(1, State), [NewChan|element(2, State)]};
         _ ->
