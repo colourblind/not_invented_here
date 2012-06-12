@@ -19,6 +19,8 @@ handle_call(Request, {Pid, Tag}, State) ->
     io:format("handle_call ~p from ~p ~p with state ~p~n", [Request, Pid, Tag, State]),
     {noreply, State}.
 
+handle_cast(stop, State) ->
+    {stop, client_quit, State};
 handle_cast({irc, Message}, State) ->
     gen_tcp:send(element(2, State), Message),
     {noreply, State}.
@@ -33,6 +35,10 @@ handle_info({tcp, Socket, Data}, State) ->
             irc:join_channel(element(1, State), self(), lists:nth(1, Params));
         "PART" ->
             irc:part_channel(element(1, State), self(), lists:nth(1, Params));
+        "QUIT" ->
+            irc:quit(element(1, State), self(), lists:nth(1, Params)),
+            gen_tcp:close(Socket),
+            gen_server:cast(self(), stop);
         "PING" ->
             io:format("Reponding to client PING~n"),
             gen_tcp:send(element(2, State), "PONG :" ++ lists:nth(1, Params) ++ "\n");

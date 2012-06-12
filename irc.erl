@@ -3,7 +3,7 @@
 -include("config.hrl").
 -include("records.hrl").
 
--export([send_message/4, join_channel/3, part_channel/3]).
+-export([send_message/4, join_channel/3, part_channel/3, quit/3]).
 
 send_message(Pid, SenderPid, Recipient, Message) ->
     case Message of
@@ -49,6 +49,7 @@ send_raw_to_channel(Pid, RecipientChannel, Message) ->
             io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientChannel]);
         Channel ->
             UserList = lists:map(fun(Nick) -> state:get_user_by_nick(Pid, Nick) end, Channel#channel.users),
+            io:format("UserList: ~p~n", [UserList]),
             lists:foreach(fun(User) -> client_handler:send_message(User#user.clientPid, Message) end, UserList)
     end.
     
@@ -63,10 +64,19 @@ join_channel(Pid, SenderPid, ChannelName) ->
 
 part_channel(Pid, SenderPid, ChannelName) ->
     Sender = state:get_user_by_pid(Pid, SenderPid),
+    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PART " ++ " :"  ++ ChannelName ++ "\r\n",
+    send_raw_to_channel(Pid, ChannelName, FinalMessage),
     case state:part_channel(Pid, ChannelName, Sender) of
         false ->
             io:format("Attempt to leave unknown channel: ~p ~p~n", [Sender#user.nick, ChannelName]);
         ok ->
-            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PART " ++ " :"  ++ ChannelName ++ "\r\n",
-            send_raw_to_channel(Pid, ChannelName, FinalMessage)
+            ok
     end.
+
+quit(Pid, SenderPid, Reason) ->
+    Sender = state:get_user_by_pid(Pid, SenderPid),
+    ChannelList = state:get_channels_for_user(Pid, Sender),
+    lists:foreach(fun(Channel) -> state:part_channel(Pid, Channel#channel.name, Sender) end, ChannelList),
+    state:remove_user(Pid, Sender),
+    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " QUIT " ++ " :"  ++ Reason ++ "\r\n",
+    lists:foreach(fun(Channel) -> send_raw_to_channel(Pid, Channel#channel.name, FinalMessage) end, ChannelList).
