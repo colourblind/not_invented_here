@@ -3,7 +3,7 @@
 -include("config.hrl").
 -include("records.hrl").
 
--export([send_message/4, join_channel/3, part_channel/3, mode/3, topic/3, quit/3]).
+-export([send_message/4, join_channel/3, part_channel/3, mode/3, topic/3, quit/3, nick/3]).
 
 send_message(Pid, SenderPid, Recipient, Message) ->
     case Message of
@@ -49,7 +49,6 @@ send_raw_to_channel(Pid, RecipientChannel, Message) ->
             io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientChannel]);
         Channel ->
             UserList = lists:map(fun(Nick) -> state:get_user(Pid, Nick) end, Channel#channel.users),
-            io:format("UserList: ~p~n", [UserList]),
             lists:foreach(fun(User) -> client_handler:send_message(User#user.clientPid, Message) end, UserList)
     end.
     
@@ -58,9 +57,9 @@ join_channel(Pid, SenderPid, ChannelName) ->
     Channel = state:join_channel(Pid, ChannelName, Sender),
     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " JOIN " ++ " :"  ++ Channel#channel.name ++ "\r\n",
     send_raw_to_channel(Pid, ChannelName, FinalMessage),
+    topic(Pid, SenderPid, ChannelName),
     client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 353 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ string:join(Channel#channel.users, " ") ++ "\r\n"),
     client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 366 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :End of /NAMES list.\r\n"),
-    topic(Pid, SenderPid, ChannelName),
     ok.
 
 part_channel(Pid, SenderPid, ChannelName) ->
@@ -99,3 +98,22 @@ quit(Pid, SenderPid, Reason) ->
     state:remove_user(Pid, Sender),
     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " QUIT " ++ " :"  ++ Reason ++ "\r\n",
     lists:foreach(fun(Channel) -> send_raw_to_channel(Pid, Channel#channel.name, FinalMessage) end, ChannelList).
+    
+nick(Pid, SenderPid, NewNick) ->
+    Sender = state:get_user(Pid, SenderPid),
+    case state:get_user(Pid, NewNick) of
+        false ->
+            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " NICK " ++ " :"  ++ NewNick ++ "\r\n",
+            state:change_nick(Pid, NewNick, Sender),
+            client_handler:send_message(SenderPid, FinalMessage),
+            ChannelList = state:get_channels_for_user(Pid, Sender),
+            lists:foreach(fun(Channel) -> send_raw_to_channel(Pid, Channel#channel.name, FinalMessage) end, ChannelList);
+            % Actually update user nick and channel nicks (DUPES IF USERS IN MULTIPLE CHANNELS WITH SENDER?)
+        _ ->
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 433 " ++ Sender#user.nick ++ " Nickname is already in use\r\n",
+            client_handler:send_message(SenderPid, FinalMessage)
+    end.
+            
+    
+    
+

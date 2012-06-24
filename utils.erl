@@ -5,6 +5,7 @@
 -export([get_server_prefix/1, get_server_command/1, get_server_params/1]).
 -export([get_client_command/1, get_client_params/1]).
 -export([get_user_prefix/1]).
+-export([replace/3]).
 
 get_server_prefix(Message) ->
     hd(string:tokens(Message, " ")).
@@ -37,3 +38,9 @@ reconstruct(ParamList) ->
         _ ->
             [hd(ParamList) | reconstruct(tl(ParamList))]
     end.
+    
+replace(Search, Replace, List) -> replace(Search, Replace, List, []).
+
+replace(_Search, _Replace, [], NewList) -> NewList;
+replace(Search, Replace, [Search|OldTail], NewList) -> replace(Search, Replace, OldTail, [Replace|NewList]);
+replace(Search, Replace, [NonMatch|OldTail], NewList) -> replace(Search, Replace, OldTail, [NonMatch|NewList]).

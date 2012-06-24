@@ -6,6 +6,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([get_user/2, get_channel/2, get_channels_for_user/2]).
 -export([add_user/2, remove_user/2, join_channel/3, part_channel/3]).
+-export([change_nick/3]).
 -export([start_link/0]).
 
 get_user(Pid, Id) ->
@@ -28,6 +29,9 @@ join_channel(Pid, ChannelName, User) ->
     
 part_channel(Pid, ChannelName, User) ->
     gen_server:call(Pid, {part_channel, ChannelName, User}).
+    
+change_nick(Pid, NewNick, User) ->
+    gen_server:call(Pid, {change_nick, NewNick, User}).
 
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
@@ -86,6 +90,11 @@ handle_call({part_channel, ChannelName, User}, _, State) ->
             Result = ok
     end,
     {reply, Result, NewState};
+handle_call({change_nick, NewNick, User}, _, State) ->
+    NewUser = setelement(2, User, NewNick),
+    NewUserList = lists:keyreplace(User#user.nick, 2, element(1, State), NewUser),
+    NewChannelList = lists:map(fun(Channel) -> setelement(4, Channel, utils:replace(User#user.nick, NewNick, Channel#channel.users)) end, element(2, State)),
+    {reply, ok, {NewUserList, NewChannelList}};
 handle_call(Request, _, State) ->
     io:format("HANDLE_CALL: ~p~n", [Request]),
     {noreply, State}.
