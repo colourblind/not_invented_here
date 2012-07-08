@@ -82,12 +82,16 @@ mode(Pid, SenderPid, ChannelName) ->
     
 topic(Pid, SenderPid, ChannelName) ->
     Sender = state:get_user(Pid, SenderPid),
-    Channel = state:get_channel(Pid, ChannelName),
-    case Channel#channel.topic of
-        "" ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 331 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No topic is set\r\n";
-        T ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 332 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ T ++ "\r\n"
+    case state:get_channel(Pid, ChannelName) of 
+        false ->
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such channel\r\n";
+        Channel ->
+            case Channel#channel.topic of
+                "" ->
+                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 331 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No topic is set\r\n";
+                T ->
+                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 332 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ T ++ "\r\n"
+            end
     end,
     client_handler:send_message(SenderPid, FinalMessage).
 

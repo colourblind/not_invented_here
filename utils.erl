@@ -19,7 +19,8 @@ get_server_params(Message) ->
     reconstruct(string:tokens(Params, " ")).
 
 get_client_command(Message) ->
-    hd(string:tokens(Message, " ")).
+    Trimmed = string:strip(Message, right, $\n),
+    hd(string:tokens(Trimmed, " ")).
     
 get_client_params(Message) ->
     Trimmed = string:strip(Message, right, $\n),
