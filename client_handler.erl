@@ -32,9 +32,9 @@ handle_info({tcp, Socket, Data}, State) ->
         "PRIVMSG" ->
             irc:send_message(element(1, State), self(), lists:nth(1, Params), lists:nth(2, Params));
         "JOIN" ->
-            irc:join_channel(element(1, State), self(), lists:nth(1, Params));
+            irc:join(element(1, State), self(), lists:nth(1, Params));
         "PART" ->
-            irc:part_channel(element(1, State), self(), lists:nth(1, Params));
+            irc:part(element(1, State), self(), lists:nth(1, Params));
         "MODE" ->
             irc:mode(element(1, State), self(), lists:nth(1, Params));
         "TOPIC" ->

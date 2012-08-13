@@ -3,7 +3,7 @@
 -include("config.hrl").
 -include("records.hrl").
 
--export([send_message/4, join_channel/3, part_channel/3, mode/3, topic/3, quit/3, nick/3]).
+-export([send_message/4, join/3, part/3, mode/3, topic/3, quit/3, nick/3]).
 
 send_message(Pid, SenderPid, Recipient, Message) ->
     case Message of
@@ -52,7 +52,7 @@ send_raw_to_channel(Pid, RecipientChannel, Message) ->
             lists:foreach(fun(User) -> client_handler:send_message(User#user.clientPid, Message) end, UserList)
     end.
     
-join_channel(Pid, SenderPid, ChannelName) ->
+join(Pid, SenderPid, ChannelName) ->
     Sender = state:get_user(Pid, SenderPid),
     Channel = state:join_channel(Pid, ChannelName, Sender),
     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " JOIN " ++ " :"  ++ Channel#channel.name ++ "\r\n",
@@ -62,7 +62,7 @@ join_channel(Pid, SenderPid, ChannelName) ->
     client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 366 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :End of /NAMES list.\r\n"),
     ok.
 
-part_channel(Pid, SenderPid, ChannelName) ->
+part(Pid, SenderPid, ChannelName) ->
     Sender = state:get_user(Pid, SenderPid),
     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PART " ++ " :"  ++ ChannelName ++ "\r\n",
     send_raw_to_channel(Pid, ChannelName, FinalMessage),
