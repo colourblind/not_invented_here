@@ -3,7 +3,7 @@
 -include("config.hrl").
 -include("records.hrl").
 
--export([send_message/4, join/3, part/3, mode/3, topic/3, quit/3, nick/3]).
+-export([send_message/4, unknown/3, join/3, part/3, mode/3, topic/3, quit/3, nick/3]).
 
 send_message(Pid, SenderPid, Recipient, Message) ->
     case Message of
@@ -22,10 +22,18 @@ send_message(Pid, SenderPid, Recipient, Message) ->
             send_to_user(Pid, Sender, Recipient, Message)
     end.
     
+unknown(Pid, SenderPid, Command) ->
+    % Would be nice to be able to deal with this directly in the client_handler,
+    % but we don't have access to the user nick
+    Sender = state:get_user(Pid, SenderPid),
+    FinalMessage = ":" ++ ?SERVER_NAME ++ " 421 " ++ Sender#user.nick ++ " " ++ Command ++ " :Unknown command\r\n",
+    client_handler:send_message(SenderPid, FinalMessage).
+    
 send_to_user(Pid, Sender, RecipientNick, Message) ->
     case state:get_user(Pid, RecipientNick) of
         false ->
-            io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientNick]);
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 401 " ++ Sender#user.nick ++ " " ++ RecipientNick ++ " :No such nick/channel\r\n",
+            client_handler:send_message(Sender#user.clientPid, FinalMessage);
         Recipient ->
             FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Recipient#user.nick ++ " :" ++ Message ++ "\r\n",
             io:format("SENDING '~p'~n", [FinalMessage]),
@@ -35,7 +43,8 @@ send_to_user(Pid, Sender, RecipientNick, Message) ->
 send_to_channel(Pid, Sender, RecipientChannel, Message) ->
     case state:get_channel(Pid, RecipientChannel) of
         false ->
-            io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientChannel]);
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 401 " ++ Sender#user.nick ++ " " ++ RecipientChannel ++ " :No such nick/channel\r\n",
+            client_handler:send_message(Sender#user.clientPid, FinalMessage);
         Channel ->
             FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
             io:format("SENDING '~p'~n", [FinalMessage]),
@@ -53,6 +62,7 @@ send_raw_to_channel(Pid, RecipientChannel, Message) ->
     end.
     
 join(Pid, SenderPid, ChannelName) ->
+    % TODO - check for valid channel name
     Sender = state:get_user(Pid, SenderPid),
     Channel = state:join_channel(Pid, ChannelName, Sender),
     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " JOIN " ++ " :"  ++ Channel#channel.name ++ "\r\n",
@@ -68,7 +78,8 @@ part(Pid, SenderPid, ChannelName) ->
     send_raw_to_channel(Pid, ChannelName, FinalMessage),
     case state:part_channel(Pid, ChannelName, Sender) of
         false ->
-            io:format("Attempt to leave unknown channel: ~p ~p~n", [Sender#user.nick, ChannelName]);
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such channel\r\n",
+            client_handler:send_message(SenderPid, FinalMessage);
         ok ->
             ok
     end.

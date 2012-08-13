@@ -48,8 +48,8 @@ handle_info({tcp, Socket, Data}, State) ->
         "PING" ->
             io:format("Reponding to client PING~n"),
             gen_tcp:send(element(2, State), "PONG :" ++ lists:nth(1, Params) ++ "\n");
-        _ ->
-            io:format("IGNORE~n")
+        Command ->
+            irc:unknown(element(1, State), self(), Command)
     end,
     {noreply, State};
 handle_info(Info, State) ->
