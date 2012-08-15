@@ -3,7 +3,7 @@
 -include("config.hrl").
 -include("records.hrl").
 
--export([send_message/4, unknown/3, join/3, part/3, mode/3, topic/3, quit/3, nick/3]).
+-export([send_message/4, unknown/3, join/3, part/3, names/3, mode/3, topic/3, quit/3, nick/3]).
 
 send_message(Pid, SenderPid, Recipient, Message) ->
     case Message of
@@ -68,9 +68,7 @@ join(Pid, SenderPid, ChannelName) ->
     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " JOIN " ++ " :"  ++ Channel#channel.name ++ "\r\n",
     send_raw_to_channel(Pid, ChannelName, FinalMessage),
     topic(Pid, SenderPid, ChannelName),
-    client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 353 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ string:join(Channel#channel.users, " ") ++ "\r\n"),
-    client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 366 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :End of /NAMES list.\r\n"),
-    ok.
+    names(Pid, SenderPid, ChannelName).
 
 part(Pid, SenderPid, ChannelName) ->
     Sender = state:get_user(Pid, SenderPid),
@@ -83,6 +81,16 @@ part(Pid, SenderPid, ChannelName) ->
         ok ->
             ok
     end.
+    
+names(Pid, SenderPid, ChannelName) ->
+    Sender = state:get_user(Pid, SenderPid),
+    case state:get_channel(Pid, ChannelName) of
+        false ->
+            ok;
+        Channel ->
+            client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 353 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ string:join(Channel#channel.users, " ") ++ "\r\n")
+    end,
+    client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 366 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :End of /NAMES list.\r\n").
     
 mode(Pid, SenderPid, ChannelName) ->
     Sender = state:get_user(Pid, SenderPid),
