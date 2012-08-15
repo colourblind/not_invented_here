@@ -3,7 +3,7 @@
 -include("config.hrl").
 -include("records.hrl").
 
--export([send_message/4, unknown/3, join/3, part/3, names/3, mode/3, topic/3, quit/3, nick/3]).
+-export([send_message/4, unknown/3, join/3, part/3, names/3, list/2, mode/3, topic/3, quit/3, nick/3]).
 
 send_message(Pid, SenderPid, Recipient, Message) ->
     case Message of
@@ -92,6 +92,14 @@ names(Pid, SenderPid, ChannelName) ->
     end,
     client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 366 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :End of /NAMES list.\r\n").
     
+list(Pid, SenderPid) ->
+    Sender = state:get_user(Pid, SenderPid),
+    ChannelList = state:get_channels(Pid),
+    io:format("~p~n", [ChannelList]),
+    client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 321 " ++ Sender#user.nick ++ " Channel :Users  Name\r\n"),
+    lists:foreach(fun(Channel) -> client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 322 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " " ++ integer_to_list(length(Channel#channel.users)) ++ " :" ++ Channel#channel.topic ++ "\r\n") end, ChannelList),
+    client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 323 " ++ Sender#user.nick ++ " :End of /LIST\r\n").
+
 mode(Pid, SenderPid, ChannelName) ->
     Sender = state:get_user(Pid, SenderPid),
     Channel = state:get_channel(Pid, ChannelName),
@@ -137,6 +145,3 @@ nick(Pid, SenderPid, NewNick) ->
             client_handler:send_message(SenderPid, FinalMessage)
     end.
             
-    
-    
-

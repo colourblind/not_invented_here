@@ -4,7 +4,7 @@
 -include("records.hrl").
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([get_user/2, get_channel/2, get_channels_for_user/2]).
+-export([get_user/2, get_channel/2, get_channels/1, get_channels_for_user/2]).
 -export([add_user/2, remove_user/2, join_channel/3, part_channel/3]).
 -export([change_nick/3]).
 -export([start_link/0]).
@@ -14,6 +14,9 @@ get_user(Pid, Id) ->
            
 get_channel(Pid, ChannelName) ->
     gen_server:call(Pid, {get_channel, ChannelName}).
+    
+get_channels(Pid) ->
+    gen_server:call(Pid, {get_channels, false}).
     
 get_channels_for_user(Pid, User) ->
     gen_server:call(Pid, {get_channels_for_user, User}).
@@ -48,6 +51,8 @@ handle_call({get_user, Nick}, _, State) ->
 handle_call({get_channel, ChannelName}, _, State) ->
     Channel = lists:keyfind(ChannelName, 2, element(2, State)),
     {reply, Channel, State};
+handle_call({get_channels, _}, _, State) ->
+    {reply, element(2, State), State};
 handle_call({get_channels_for_user, User}, _, State) ->
     ChannelList = lists:filter(fun(Channel) -> lists:member(User#user.nick, Channel#channel.users) end, element(2, State)),
     {reply, ChannelList, State};

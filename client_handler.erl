@@ -37,6 +37,8 @@ handle_info({tcp, Socket, Data}, State) ->
             irc:part(element(1, State), self(), lists:nth(1, Params));
         "NAMES" ->
             irc:names(element(1, State), self(), lists:nth(1, Params));
+        "LIST" ->
+            irc:list(element(1, State), self());
         "MODE" ->
             irc:mode(element(1, State), self(), lists:nth(1, Params));
         "TOPIC" ->
