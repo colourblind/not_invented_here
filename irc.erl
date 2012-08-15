@@ -72,14 +72,13 @@ join(Pid, SenderPid, ChannelName) ->
 
 part(Pid, SenderPid, ChannelName) ->
     Sender = state:get_user(Pid, SenderPid),
-    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PART " ++ " :"  ++ ChannelName ++ "\r\n",
-    send_raw_to_channel(Pid, ChannelName, FinalMessage),
     case state:part_channel(Pid, ChannelName, Sender) of
         false ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such channel\r\n",
-            client_handler:send_message(SenderPid, FinalMessage);
+            client_handler:send_message(SenderPid, ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such channel\r\n");
         ok ->
-            ok
+            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PART " ++ " :"  ++ ChannelName ++ "\r\n",
+            send_raw_to_channel(Pid, ChannelName, FinalMessage),
+            client_handler:send_message(SenderPid, FinalMessage)
     end.
     
 names(Pid, SenderPid, ChannelName) ->
@@ -135,9 +134,9 @@ nick(Pid, SenderPid, NewNick) ->
     case state:get_user(Pid, NewNick) of
         false ->
             FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " NICK " ++ " :"  ++ NewNick ++ "\r\n",
+            ChannelList = state:get_channels_for_user(Pid, Sender),
             state:change_nick(Pid, NewNick, Sender),
             client_handler:send_message(SenderPid, FinalMessage),
-            ChannelList = state:get_channels_for_user(Pid, Sender),
             lists:foreach(fun(Channel) -> send_raw_to_channel(Pid, Channel#channel.name, FinalMessage) end, ChannelList);
             % Actually update user nick and channel nicks (DUPES IF USERS IN MULTIPLE CHANNELS WITH SENDER?)
         _ ->
