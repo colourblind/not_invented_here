@@ -11,7 +11,7 @@
 
 get_user(Pid, Id) ->
     gen_server:call(Pid, {get_user, Id}).
-           
+    
 get_channel(Pid, ChannelName) ->
     gen_server:call(Pid, {get_channel, ChannelName}).
     
@@ -54,7 +54,7 @@ handle_call({get_channel, ChannelName}, _, State) ->
 handle_call({get_channels, _}, _, State) ->
     {reply, element(2, State), State};
 handle_call({get_channels_for_user, User}, _, State) ->
-    ChannelList = lists:filter(fun(Channel) -> lists:member(User#user.nick, Channel#channel.users) end, element(2, State)),
+    ChannelList = lists:filter(fun(Channel) -> lists:member(User#user.clientPid, Channel#channel.users) end, element(2, State)),
     {reply, ChannelList, State};
 handle_call({add_user, User}, _, State) ->
     NewState = {lists:append(element(1, State), [User]), element(2, State)},
@@ -68,11 +68,11 @@ handle_call({join_channel, ChannelName, User}, _, State) ->
     case Channel of
         false ->
             io:format("Creating channel ~p~n", [ChannelName]),
-            NewChan = #channel{name=ChannelName, topic="Test topic", users=[User#user.nick], mode="nt"}, 
+            NewChan = #channel{name=ChannelName, topic="Test topic", users=[User#user.clientPid], mode="nt"}, 
             % set up user as chanop
             NewState = {element(1, State), [NewChan|element(2, State)]};
         _ ->
-            NewChan = setelement(4, Channel, [User#user.nick|Channel#channel.users]),
+            NewChan = setelement(4, Channel, [User#user.clientPid|Channel#channel.users]),
             NewState = {element(1, State), lists:keyreplace(ChannelName, 2, element(2, State), NewChan)}
     end,
     {reply, NewChan, NewState};
@@ -84,7 +84,7 @@ handle_call({part_channel, ChannelName, User}, _, State) ->
             NewState = State,
             Result = false;
         _ ->
-            NewChan = setelement(4, Channel, lists:delete(User#user.nick, Channel#channel.users)),
+            NewChan = setelement(4, Channel, lists:delete(User#user.clientPid, Channel#channel.users)),
             case length(NewChan#channel.users) of
                 0 ->
                     io:format("Removing dead channel: ~p~n", [ChannelName]),
@@ -98,8 +98,7 @@ handle_call({part_channel, ChannelName, User}, _, State) ->
 handle_call({change_nick, NewNick, User}, _, State) ->
     NewUser = setelement(2, User, NewNick),
     NewUserList = lists:keyreplace(User#user.nick, 2, element(1, State), NewUser),
-    NewChannelList = lists:map(fun(Channel) -> setelement(4, Channel, utils:replace(User#user.nick, NewNick, Channel#channel.users)) end, element(2, State)),
-    {reply, ok, {NewUserList, NewChannelList}};
+    {reply, ok, {NewUserList, element(2, State)}};
 handle_call(Request, _, State) ->
     io:format("HANDLE_CALL: ~p~n", [Request]),
     {noreply, State}.
