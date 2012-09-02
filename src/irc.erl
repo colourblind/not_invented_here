@@ -107,12 +107,22 @@ list(Pid, SenderPid) ->
     lists:foreach(fun(Channel) -> client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 322 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " " ++ integer_to_list(length(Channel#channel.users)) ++ " :" ++ Channel#channel.topic ++ "\r\n") end, ChannelList),
     client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 323 " ++ Sender#user.nick ++ " :End of /LIST\r\n").
 
-mode(Pid, SenderPid, ChannelName) ->
+mode(Pid, SenderPid, Params) when length(Params) == 1 ->
+    ChannelName = hd(Params),
     Sender = state:get_user(Pid, SenderPid),
     Channel = state:get_channel(Pid, ChannelName),
     FinalMessage = ":" ++ ?SERVER_NAME ++ " 324 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " +" ++ Channel#channel.mode ++ "\r\n",
     io:format("~p~n", [FinalMessage]),
-    client_handler:send_message(SenderPid, FinalMessage).
+    client_handler:send_message(SenderPid, FinalMessage);
+mode(Pid, SenderPid, Params) when length(Params) == 2 ->
+    Sender = state:get_user(Pid, SenderPid),
+    Channel = state:get_channel(Pid, hd(Params)),
+    Mode = hd(tl(Params)),
+    NewMode = utils:resolve_mode(Channel#channel.mode, Mode),
+    state:set_channel_mode(Pid, Channel#channel.name, NewMode),
+    FinalMessage = ":" ++ ?SERVER_NAME ++ " 324 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " +" ++ NewMode ++ "\r\n",
+    io:format("~p~n", [FinalMessage]),
+    send_raw_to_channel(Pid, Channel#channel.name, FinalMessage).
     
 topic(Pid, SenderPid, ChannelName) ->
     Sender = state:get_user(Pid, SenderPid),

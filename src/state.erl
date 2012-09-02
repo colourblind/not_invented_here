@@ -5,8 +5,8 @@
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([get_user/2, get_channel/2, get_channels/1, get_channels_for_user/2]).
--export([add_user/2, remove_user/2, join_channel/3, part_channel/3]).
--export([change_nick/3]).
+-export([add_user/2, remove_user/2, join_channel/3, part_channel/3, change_nick/3]).
+-export([set_channel_mode/3]).
 -export([start_link/0]).
 
 get_user(Pid, Id) ->
@@ -35,6 +35,9 @@ part_channel(Pid, ChannelName, User) ->
     
 change_nick(Pid, NewNick, User) ->
     gen_server:call(Pid, {change_nick, NewNick, User}).
+    
+set_channel_mode(Pid, ChannelName, NewMode) ->
+    gen_server:call(Pid, {set_channel_mode, ChannelName, NewMode}).
 
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
@@ -92,6 +95,18 @@ handle_call({part_channel, ChannelName, User}, _, State) ->
                 _ ->
                     NewState = {element(1, State), lists:keyreplace(ChannelName, 2, element(2, State), NewChan)}
             end,
+            Result = ok
+    end,
+    {reply, Result, NewState};
+handle_call({set_channel_mode, ChannelName, NewMode}, _, State) ->
+    Channel = lists:keyfind(ChannelName, 2, element(2, State)),
+    case Channel of
+        false ->
+            NewState = State,
+            Result = false;
+        _ ->
+            NewChan = setelement(5, Channel, NewMode),
+            NewState = {element(1, State), lists:keyreplace(ChannelName, 2, element(2, State), NewChan)},
             Result = ok
     end,
     {reply, Result, NewState};

@@ -4,7 +4,7 @@
 
 -export([get_server_prefix/1, get_server_command/1, get_server_params/1]).
 -export([get_client_command/1, get_client_params/1]).
--export([get_user_prefix/1]).
+-export([get_user_prefix/1, resolve_mode/2]).
 -export([replace/3]).
 
 get_server_prefix(Message) ->
@@ -29,6 +29,15 @@ get_client_params(Message) ->
     
 get_user_prefix(User) ->
     User#user.nick ++ "!" ++ User#user.username ++ "@" ++ User#user.clientHost.
+
+resolve_mode(ModeString, NewModes) ->
+    case hd(NewModes) of
+        $+ ->
+            Result = lists:append(ModeString, tl(NewModes));
+        $- ->
+            Result = lists:subtract(ModeString, tl(NewModes))
+    end,
+    lists:sort(Result).
 
 reconstruct([]) ->
     [];

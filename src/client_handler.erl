@@ -40,7 +40,7 @@ handle_info({tcp, Socket, Data}, State) ->
         "LIST" ->
             irc:list(element(1, State), self());
         "MODE" ->
-            irc:mode(element(1, State), self(), lists:nth(1, Params));
+            irc:mode(element(1, State), self(), Params);
         "TOPIC" ->
             irc:topic(element(1, State), self(), lists:nth(1, Params));
         "NICK" ->
