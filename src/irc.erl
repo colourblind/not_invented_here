@@ -48,7 +48,7 @@ send_to_channel(Pid, Sender, RecipientChannel, Message) ->
         Channel ->
             FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
             io:format("SENDING '~p'~n", [FinalMessage]),
-            UserList = lists:delete(Sender, Channel#channel.users)),
+            UserList = lists:delete(Sender, Channel#channel.users),
             lists:foreach(fun(ClientPid) -> client_handler:send_message(ClientPid, FinalMessage) end, UserList)
     end.
     
@@ -128,7 +128,7 @@ quit(Pid, SenderPid, Reason) ->
     ChannelList = state:get_channels_for_user(Pid, Sender),
     lists:foreach(fun(Channel) -> state:part_channel(Pid, Channel#channel.name, Sender) end, ChannelList),
     state:remove_user(Pid, Sender),
-    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " QUIT " ++ " :"  ++ Reason ++ "\r\n"
+    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " QUIT " ++ " :"  ++ Reason ++ "\r\n",
     lists:foreach(fun(Channel) -> send_raw_to_channel(Pid, Channel#channel.name, FinalMessage) end, ChannelList).
     
 nick(Pid, SenderPid, NewNick) ->
