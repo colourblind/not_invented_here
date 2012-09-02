@@ -46,10 +46,16 @@ send_to_channel(Pid, Sender, RecipientChannel, Message) ->
             FinalMessage = ":" ++ ?SERVER_NAME ++ " 401 " ++ Sender#user.nick ++ " " ++ RecipientChannel ++ " :No such nick/channel\r\n",
             client_handler:send_message(Sender#user.clientPid, FinalMessage);
         Channel ->
-            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
-            io:format("SENDING '~p'~n", [FinalMessage]),
-            UserList = lists:delete(Sender, Channel#channel.users),
-            lists:foreach(fun(ClientPid) -> client_handler:send_message(ClientPid, FinalMessage) end, UserList)
+            case lists:member($n, Channel#channel.mode) and not lists:member(Sender#user.clientPid, Channel#channel.users) of
+                true ->
+                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 404 " ++ Sender#user.nick ++ " " ++ RecipientChannel ++ " :Cannot send to channel\r\n",
+                    client_handler:send_message(Sender#user.clientPid, FinalMessage);
+                false ->
+                    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
+                    io:format("SENDING '~p'~n", [FinalMessage]),
+                    UserList = lists:delete(Sender#user.clientPid, Channel#channel.users),
+                    lists:foreach(fun(ClientPid) -> client_handler:send_message(ClientPid, FinalMessage) end, UserList)
+            end
     end.
     
 send_raw_to_channel(Pid, RecipientChannel, Message) ->
