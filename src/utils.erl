@@ -4,7 +4,7 @@
 
 -export([get_server_prefix/1, get_server_command/1, get_server_params/1]).
 -export([get_client_command/1, get_client_params/1]).
--export([get_user_prefix/1, resolve_mode/2]).
+-export([get_user_prefix/1, resolve_mode/2, fix_nick/2]).
 -export([replace/3]).
 
 get_server_prefix(Message) ->
@@ -38,6 +38,14 @@ resolve_mode(ModeString, NewModes) ->
             Result = lists:subtract(ModeString, tl(NewModes))
     end,
     lists:sort(Result).
+    
+fix_nick(User, OpList) ->
+    case lists:member(User#user.clientPid, OpList) of
+        true ->
+            "@" ++ User#user.nick;
+        false ->
+            User#user.nick
+    end.
 
 reconstruct([]) ->
     [];
