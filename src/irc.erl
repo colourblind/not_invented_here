@@ -110,18 +110,33 @@ list(Pid, SenderPid) ->
 mode(Pid, SenderPid, Params) when length(Params) == 1 ->
     ChannelName = hd(Params),
     Sender = state:get_user(Pid, SenderPid),
-    Channel = state:get_channel(Pid, ChannelName),
-    FinalMessage = ":" ++ ?SERVER_NAME ++ " 324 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " +" ++ Channel#channel.mode ++ "\r\n",
-    io:format("~p~n", [FinalMessage]),
-    client_handler:send_message(SenderPid, FinalMessage);
+    case state:get_channel(Pid, ChannelName) of
+        false ->
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ hd(Params) ++ " :No such channel\r\n",
+            client_handler:send_message(SenderPid, FinalMessage);
+        Channel ->
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 324 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " +" ++ Channel#channel.mode ++ "\r\n",
+            client_handler:send_message(SenderPid, FinalMessage)
+    end;
 mode(Pid, SenderPid, Params) when length(Params) == 2 ->
     Sender = state:get_user(Pid, SenderPid),
-    Channel = state:get_channel(Pid, hd(Params)),
-    Mode = hd(tl(Params)),
-    NewMode = utils:resolve_mode(Channel#channel.mode, Mode),
-    state:set_channel_mode(Pid, Channel#channel.name, NewMode),
-    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " :" ++ Mode ++ "\r\n",
-    send_raw_to_channel(Pid, Channel#channel.name, FinalMessage);
+    case state:get_channel(Pid, hd(Params)) of
+        false ->
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ hd(Params) ++ " :No such channel\r\n",
+            client_handler:send_message(SenderPid, FinalMessage);
+        Channel ->
+            case lists:member(SenderPid, Channel#channel.ops) of
+                false ->
+                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 482 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " :You're not channel operator\r\n",
+                    client_handler:send_message(Sender#user.clientPid, FinalMessage);
+                true ->
+                    Mode = hd(tl(Params)),
+                    NewMode = utils:resolve_mode(Channel#channel.mode, Mode),
+                    state:set_channel_mode(Pid, Channel#channel.name, NewMode),
+                    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " :" ++ Mode ++ "\r\n",
+                    send_raw_to_channel(Pid, Channel#channel.name, FinalMessage)
+            end
+    end;
 mode(Pid, SenderPid, Params) when length(Params) == 3 ->
     Sender = state:get_user(Pid, SenderPid),
     case state:get_channel(Pid, hd(Params)) of
@@ -129,8 +144,14 @@ mode(Pid, SenderPid, Params) when length(Params) == 3 ->
             FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ hd(Params) ++ " :No such channel\r\n",
             client_handler:send_message(SenderPid, FinalMessage);
         Channel ->
-            Mode = hd(tl(Params)),
-            mode(Pid, Sender, lists:nth(2, Mode), Channel, Params)
+            case lists:member(SenderPid, Channel#channel.ops) of
+                true ->
+                    Mode = hd(tl(Params)),
+                    mode(Pid, Sender, lists:nth(2, Mode), Channel, Params);
+                false ->
+                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 482 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " :You're not channel operator\r\n",
+                    client_handler:send_message(Sender#user.clientPid, FinalMessage)
+            end
     end.
 mode(Pid, Sender, $o, Channel, Params) ->
     case state:get_user(Pid, lists:nth(3, Params)) of
@@ -138,21 +159,15 @@ mode(Pid, Sender, $o, Channel, Params) ->
             FinalMessage = ":" ++ ?SERVER_NAME ++ " 401 " ++ Sender#user.nick ++ " " ++ lists:nth(3, Params) ++ " :No such nick/channel\r\n",
             client_handler:send_message(Sender#user.clientPid, FinalMessage);
         User ->
-            case lists:member(Sender#user.clientPid, Channel#channel.ops) of
-                true ->
-                    case hd(lists:nth(2, Params)) of
-                        $+ ->
-                            state:set_chanop(Pid, Channel, User#user.clientPid),
-                            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " +o " ++ User#user.nick ++ "\r\n";
-                        $- ->
-                            state:remove_chanop(Pid, Channel, User#user.clientPid),
-                            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " -o " ++ User#user.nick ++ "\r\n"
-                    end,
-                    send_raw_to_channel(Pid, Channel#channel.name, FinalMessage);
-                false ->
-                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 482 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " :You're not channel operator\r\n",
-                    client_handler:send_message(Sender#user.clientPid, FinalMessage)
-            end
+            case hd(lists:nth(2, Params)) of
+                $+ ->
+                    state:set_chanop(Pid, Channel, User#user.clientPid),
+                    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " +o " ++ User#user.nick ++ "\r\n";
+                $- ->
+                    state:remove_chanop(Pid, Channel, User#user.clientPid),
+                    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " -o " ++ User#user.nick ++ "\r\n"
+            end,
+            send_raw_to_channel(Pid, Channel#channel.name, FinalMessage)
     end.
     
 topic(Pid, SenderPid, Params) when length(Params) == 1 ->
