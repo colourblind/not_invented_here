@@ -120,8 +120,7 @@ mode(Pid, SenderPid, Params) when length(Params) == 2 ->
     Mode = hd(tl(Params)),
     NewMode = utils:resolve_mode(Channel#channel.mode, Mode),
     state:set_channel_mode(Pid, Channel#channel.name, NewMode),
-    FinalMessage = ":" ++ ?SERVER_NAME ++ " 324 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " +" ++ NewMode ++ "\r\n",
-    io:format("~p~n", [FinalMessage]),
+    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " :" ++ Mode ++ "\r\n",
     send_raw_to_channel(Pid, Channel#channel.name, FinalMessage);
 mode(Pid, SenderPid, Params) when length(Params) == 3 ->
     Sender = state:get_user(Pid, SenderPid),
