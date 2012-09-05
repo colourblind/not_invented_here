@@ -42,7 +42,7 @@ handle_info({tcp, Socket, Data}, State) ->
         "MODE" ->
             irc:mode(element(1, State), self(), Params);
         "TOPIC" ->
-            irc:topic(element(1, State), self(), lists:nth(1, Params));
+            irc:topic(element(1, State), self(), Params);
         "NICK" ->
             irc:nick(element(1, State), self(), lists:nth(1, Params));
         "QUIT" ->

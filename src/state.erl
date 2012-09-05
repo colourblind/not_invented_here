@@ -6,7 +6,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([get_user/2, get_channel/2, get_channels/1, get_channels_for_user/2]).
 -export([add_user/2, remove_user/2, join_channel/3, part_channel/3, change_nick/3]).
--export([set_channel_mode/3, set_chanop/3, remove_chanop/3]).
+-export([set_channel_mode/3, set_chanop/3, remove_chanop/3, set_topic/3]).
 -export([start_link/0]).
 
 get_user(Pid, Id) ->
@@ -39,11 +39,14 @@ change_nick(Pid, NewNick, User) ->
 set_channel_mode(Pid, ChannelName, NewMode) ->
     gen_server:call(Pid, {set_channel_mode, ChannelName, NewMode}).
 
-set_chanop(Pid, User, ChannelName) ->
-    gen_server:call(Pid, {set_chanop, User, ChannelName}).
+set_chanop(Pid, Channel, ClientPid) ->
+    gen_server:call(Pid, {set_chanop, Channel, ClientPid}).
     
-remove_chanop(Pid, User, ChannelName) ->
-    gen_server:call(Pid, {remove_chanop, User, ChannelName}).
+remove_chanop(Pid, Channel, ClientPid) ->
+    gen_server:call(Pid, {remove_chanop, Channel, ClientPid}).
+    
+set_topic(Pid, Channel, NewTopic) ->
+    gen_server:call(Pid, {set_topic, Channel, NewTopic}).
 
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
@@ -128,6 +131,9 @@ handle_call({set_chanop, Channel, ClientPid}, _, State) ->
     {reply, ok, {element(1, State), lists:keyreplace(Channel#channel.name, 2, element(2, State), NewChan)}};
 handle_call({remove_chanop, Channel, ClientPid}, _, State) ->
     NewChan = setelement(6, Channel, lists:delete(ClientPid, Channel#channel.ops)),
+    {reply, ok, {element(1, State), lists:keyreplace(Channel#channel.name, 2, element(2, State), NewChan)}};
+handle_call({set_topic, Channel, NewTopic}, _, State) ->
+    NewChan = setelement(3, Channel, NewTopic),
     {reply, ok, {element(1, State), lists:keyreplace(Channel#channel.name, 2, element(2, State), NewChan)}};
 handle_call(Request, _, State) ->
     io:format("HANDLE_CALL: ~p~n", [Request]),

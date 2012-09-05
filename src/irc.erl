@@ -73,7 +73,7 @@ join(Pid, SenderPid, ChannelName) ->
     Channel = state:join_channel(Pid, ChannelName, Sender),
     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " JOIN " ++ " :"  ++ Channel#channel.name ++ "\r\n",
     send_raw_to_channel(Pid, ChannelName, FinalMessage),
-    topic(Pid, SenderPid, ChannelName),
+    topic(Pid, SenderPid, [ChannelName]),
     names(Pid, SenderPid, ChannelName).
 
 part(Pid, SenderPid, ChannelName) ->
@@ -156,7 +156,8 @@ mode(Pid, Sender, $o, Channel, Params) ->
             end
     end.
     
-topic(Pid, SenderPid, ChannelName) ->
+topic(Pid, SenderPid, Params) when length(Params) == 1 ->
+    ChannelName = hd(Params),
     Sender = state:get_user(Pid, SenderPid),
     case state:get_channel(Pid, ChannelName) of 
         false ->
@@ -169,7 +170,26 @@ topic(Pid, SenderPid, ChannelName) ->
                     FinalMessage = ":" ++ ?SERVER_NAME ++ " 332 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ T ++ "\r\n"
             end
     end,
-    client_handler:send_message(SenderPid, FinalMessage).
+    client_handler:send_message(SenderPid, FinalMessage);
+topic(Pid, SenderPid, Params) when length(Params) == 2 ->
+    ChannelName = hd(Params),
+    NewTopic = hd(tl(Params)),
+    Sender = state:get_user(Pid, SenderPid),
+    case state:get_channel(Pid, ChannelName) of
+        false ->
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such channel\r\n",
+            client_handler:send_message(SenderPid, FinalMessage);
+        Channel ->
+            case lists:member($t, Channel#channel.mode) and not lists:member(Sender#user.clientPid, Channel#channel.ops) of
+                true ->
+                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 482 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :You're not channel operator\r\n",
+                    client_handler:send_message(SenderPid, FinalMessage);
+                false ->
+                    state:set_topic(Pid, Channel, NewTopic),
+                    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " TOPIC " ++ ChannelName ++ " :" ++ NewTopic ++ "\r\n",
+                    send_raw_to_channel(Pid, ChannelName, FinalMessage)
+            end
+    end.
 
 quit(Pid, SenderPid, Reason) ->
     Sender = state:get_user(Pid, SenderPid),
