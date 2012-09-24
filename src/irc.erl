@@ -3,7 +3,7 @@
 -include("config.hrl").
 -include("records.hrl").
 
--export([send_message/4, unknown/3, join/3, part/3, names/3, list/2, mode/3, topic/3, quit/3, nick/3]).
+-export([send_message/4, unknown/3, join/3, part/3, names/3, list/2, mode/3, topic/3, quit/3, nick/3, userhost/3]).
 
 send_message(Pid, SenderPid, Recipient, Message) ->
     case Message of
@@ -226,4 +226,14 @@ nick(Pid, SenderPid, NewNick) ->
             FinalMessage = ":" ++ ?SERVER_NAME ++ " 433 " ++ Sender#user.nick ++ " Nickname is already in use\r\n",
             client_handler:send_message(SenderPid, FinalMessage)
     end.
-            
+
+userhost(Pid, SenderPid, NewNick) ->
+    Sender = state:get_user(Pid, SenderPid),
+    case state:get_user(Pid, NewNick) of
+        false ->
+            % Dunno what to do here. RFC1459 doesn't say :-/
+            ok;
+        User ->
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 302 " ++ Sender#user.nick ++ " :" ++ User#user.nick ++ "=+~" ++ User#user.username ++ "@" ++ User#user.clientHost ++ "\r\n",
+            client_handler:send_message(SenderPid, FinalMessage)
+    end.

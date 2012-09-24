@@ -6,10 +6,9 @@
 
 send_message(Pid, Message) ->
     gen_server:cast(Pid, {irc, Message}).
-    
+
 start_link(ServerPid, Socket) ->
     gen_server:start_link(?MODULE, {ServerPid, Socket}, []).
-    
 
 init({ServerPid, Socket}) ->
     io:format("Initialising client_handler!~nState: ~p~nSocket ~p~n", [ServerPid, Socket]),
@@ -20,7 +19,7 @@ handle_call(Request, {Pid, Tag}, State) ->
     {noreply, State}.
 
 handle_cast(stop, State) ->
-    {stop, client_quit, State};
+    {stop, normal, State};
 handle_cast({irc, Message}, State) ->
     gen_tcp:send(element(2, State), Message),
     {noreply, State}.
@@ -45,6 +44,8 @@ handle_info({tcp, Socket, Data}, State) ->
             irc:topic(element(1, State), self(), Params);
         "NICK" ->
             irc:nick(element(1, State), self(), lists:nth(1, Params));
+        "USERHOST" ->
+            irc:userhost(element(1, State), self(), lists:nth(1, Params));
         "QUIT" ->
             irc:quit(element(1, State), self(), lists:nth(1, Params)),
             gen_tcp:close(Socket),
