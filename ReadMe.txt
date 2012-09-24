@@ -5,8 +5,9 @@ TODO:
 - Handle tcp_closed
 - Server-to-client PINGs
 - WHOIS
-- MODEs tnsp
-- MODEs obv
-- MODEs kl
+- MODEs sp
 - KICK
+- MODEs bv
+- MODEs l
+- MODEs ki
 - Everything else
