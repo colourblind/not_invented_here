@@ -8,6 +8,7 @@ send_message(Pid, Message) ->
     gen_server:cast(Pid, {irc, Message}).
 
 start_link(ServerPid, Socket) ->
+    inet:setopts(Socket, [{active, true}]),
     gen_server:start_link(?MODULE, {ServerPid, Socket}, []).
 
 init({ServerPid, Socket}) ->
