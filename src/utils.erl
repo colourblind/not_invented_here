@@ -14,16 +14,16 @@ get_server_command(Message) ->
     hd(tl(string:tokens(Message, " "))).
     
 get_server_params(Message) ->
-    Trimmed = string:strip(Message, right, $\n),
+    Trimmed = string:strip(string:strip(Message, right, $\n), right, $\r),
     Params = string:join(tl(tl(string:tokens(Trimmed, " "))), " "),
     reconstruct(string:tokens(Params, " ")).
 
 get_client_command(Message) ->
-    Trimmed = string:strip(Message, right, $\n),
+    Trimmed = string:strip(string:strip(Message, right, $\n), right, $\r),
     hd(string:tokens(Trimmed, " ")).
     
 get_client_params(Message) ->
-    Trimmed = string:strip(Message, right, $\n),
+    Trimmed = string:strip(string:strip(Message, right, $\n), right, $\r),
     Params = string:join(tl(string:tokens(Trimmed, " ")), " "),
     reconstruct(string:tokens(Params, " ")).
     
@@ -37,7 +37,7 @@ resolve_mode(ModeString, NewModes) ->
         $- ->
             Result = lists:subtract(ModeString, tl(NewModes))
     end,
-    lists:sort(Result).
+    lists:usort(Result).
     
 fix_nick(User, OpList) ->
     case lists:member(User#user.clientPid, OpList) of
