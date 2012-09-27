@@ -6,7 +6,7 @@
 
 -export([start_link/2]).
 -export([init/1, handle_event/3, handle_sync_event/4, code_change/4, terminate/3]).
--export([nick/2, user/2]).
+-export([start/2, nick/2, user/2]).
 
 start_link(ServerPid, Socket) ->
     io:format("STARTING HANDSHAKE~n"),
@@ -15,7 +15,7 @@ start_link(ServerPid, Socket) ->
     loop(Pid, Socket).
     
 loop(FsmPid, Socket) ->
-    case gen_tcp:recv(Socket, 0) of
+    case gen_tcp:recv(Socket, 0, 30000) of
         {ok, Packet} ->
             io:format("handshake packet recv: ~p~n", [Packet]),
             Params = utils:get_client_params(Packet),
@@ -32,21 +32,22 @@ loop(FsmPid, Socket) ->
                 _ ->
                     io:format("Unknown handshake packet! ~p~n", [Packet])
             end;            
-        {error, _} ->
+        {error, Reason} ->
+            io:format("Handshake recv loop error: ~p~n", [Reason]),
             ok
     end.
 
-nick({nick, Nick}, {Socket, ServerPid}) ->
+start({nick, Nick}, {Socket, ServerPid}) ->
     % Make sure the nick is available
     case state:get_user(ServerPid, Nick) of
         false ->
-            {next_state, user, {Socket, ServerPid, Nick}};
+            {next_state, nick, {Socket, ServerPid, Nick}};
         _ ->
-            % TODO: respond to client
-            {next_state, nick, {Socket, ServerPid}}
-    end.
-    
-user({user, UserLine}, {Socket, ServerPid, Nick}) ->
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 433 " ++ Nick ++ " Nickname is already in use\r\n",
+            gen_tcp:send(Socket, FinalMessage),
+            {next_state, start, {Socket, ServerPid}}
+    end;
+start({user, UserLine}, {Socket, ServerPid}) ->
     UserTokens = string:tokens(UserLine, " \n"),
     Username = lists:nth(2, UserTokens),
     % ClientHost = lists:nth(3, UserTokens),
@@ -55,6 +56,33 @@ user({user, UserLine}, {Socket, ServerPid, Nick}) ->
     
     {ok, {Ip, _}} = inet:peername(Socket),
     ClientHost = inet_parse:ntoa(Ip),
+    {next_state, user, {Socket, ServerPid, "", Username, ClientHost, ServerName, RealName}}.
+
+
+nick({user, UserLine}, {Socket, ServerPid, Nick}) ->
+    UserTokens = string:tokens(UserLine, " \n"),
+    Username = lists:nth(2, UserTokens),
+    % ClientHost = lists:nth(3, UserTokens),
+    ServerName = lists:nth(4, UserTokens),
+    RealName = lists:nth(5, UserTokens),
+    
+    {ok, {Ip, _}} = inet:peername(Socket),
+    ClientHost = inet_parse:ntoa(Ip),
+
+    finish({Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName}).
+    
+user({nick, Nick}, {Socket, ServerPid, _, Username, ClientHost, ServerName, RealName}) ->
+    % Make sure the nick is available
+    case state:get_user(ServerPid, Nick) of
+        false ->
+                finish({Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName});
+        _ ->
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 433 " ++ Nick ++ " Nickname is already in use\r\n",
+            gen_tcp:send(Socket, FinalMessage),
+            {next_state, user, {Socket, ServerPid, "", Username, ClientHost, ServerName, RealName}}
+    end.
+    
+finish({Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName}) ->
     % We're spawning the client handlers via the state service so they'll die if it falls over.
     Pid = state:spawn_handler(ServerPid, Socket),
     state:add_user(ServerPid, #user{nick=Nick, clientPid=Pid, username=Username, clientHost=ClientHost, serverName=ServerName, realName=RealName}),
@@ -72,7 +100,7 @@ user({user, UserLine}, {Socket, ServerPid, Nick}) ->
     {stop, normal, {Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName}}.
     
 init(ServerPid) ->
-    {ok, nick, ServerPid}.
+    {ok, start, ServerPid}.
 
 handle_event(Event, StateName, StateData) ->
     io:format("handle_event handshake ~p at ~p with state ~p~n", [Event, StateName, StateData]),
