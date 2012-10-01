@@ -11,7 +11,7 @@ start(Port) ->
     io:format("Starting up~n"),
     {ok, ServerPid} = state:start_link(),
     io:format("Created server process ~p~n", [ServerPid]),
-    {ok, LSocket} = gen_tcp:listen(Port, [{active, false}, {packet, line}]),
+    {ok, LSocket} = gen_tcp:listen(Port, [{active, true}, {packet, line}]),
     listener(LSocket, ServerPid).
     
 listener(LSocket, ServerPid) ->

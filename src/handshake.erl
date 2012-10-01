@@ -10,44 +10,54 @@
 
 start_link(ServerPid, Socket) ->
     io:format("STARTING HANDSHAKE~n"),
-    {ok, Pid} = gen_fsm:start_link(?MODULE, {Socket, ServerPid}, []),
-    gen_tcp:controlling_process(Socket, Pid),
-    loop(Pid, Socket).
+    {ok, FsmPid} = gen_fsm:start_link(?MODULE, {self(), Socket, ServerPid}, []),
+    gen_tcp:controlling_process(Socket, self()),
+    loop(FsmPid).
     
-loop(FsmPid, Socket) ->
-    case gen_tcp:recv(Socket, 0, 30000) of
-        {ok, Packet} ->
+loop(FsmPid) ->
+    receive
+        {tcp, _, Packet} ->
             io:format("handshake packet recv: ~p~n", [Packet]),
             Params = utils:get_client_params(Packet),
             case utils:get_client_command(Packet) of 
                 "CAP" ->
                     % Ignoring for now . . .
-                    loop(FsmPid, Socket);
+                    loop(FsmPid);
                 "NICK" ->
                     gen_fsm:send_event(FsmPid, {nick, hd(Params)}),
-                    loop(FsmPid, Socket);
+                    loop(FsmPid);
                 "USER" ->
                     gen_fsm:send_event(FsmPid, {user, Packet}),
-                    loop(FsmPid, Socket);
+                    loop(FsmPid);
                 _ ->
                     io:format("Unknown handshake packet! ~p~n", [Packet])
-            end;            
-        {error, Reason} ->
-            io:format("Handshake recv loop error: ~p~n", [Reason]),
-            ok
+            end;
+        {stop, {ClientPid, Socket, Nick}} ->
+            case gen_tcp:controlling_process(Socket, ClientPid) of
+                ok ->
+                    io:format("Control for socket ~p transferred to ~p~n", [Socket, ClientPid]);
+                {error, Reason} ->
+                    io:format("Control for socket ~p transfer failed! ~p~n", [Socket, Reason])
+            end,
+            gen_tcp:send(Socket, ":" ++ ?SERVER_NAME ++ " 001 " ++ Nick ++ " :Welcome to " ++ ?SERVER_NAME ++ "\r\n"),
+            gen_tcp:send(Socket, ":" ++ ?SERVER_NAME ++ " 002 " ++ Nick ++ " :Powered by not_invented_here\r\n"),
+            gen_tcp:send(Socket, ":" ++ ?SERVER_NAME ++ " 003 " ++ Nick ++ " :Y U NO WERK?!\r\n"),
+            ok;
+        Wut ->
+            io:format("Message received: ~p~n", [Wut])
     end.
 
-start({nick, Nick}, {Socket, ServerPid}) ->
+start({nick, Nick}, {ParentPid, Socket, ServerPid}) ->
     % Make sure the nick is available
     case state:get_user(ServerPid, Nick) of
         false ->
-            {next_state, nick, {Socket, ServerPid, Nick}};
+            {next_state, nick, {ParentPid, Socket, ServerPid, Nick}};
         _ ->
             FinalMessage = ":" ++ ?SERVER_NAME ++ " 433 " ++ Nick ++ " Nickname is already in use\r\n",
             gen_tcp:send(Socket, FinalMessage),
-            {next_state, start, {Socket, ServerPid}}
+            {next_state, start, {ParentPid, Socket, ServerPid}}
     end;
-start({user, UserLine}, {Socket, ServerPid}) ->
+start({user, UserLine}, {ParentPid, Socket, ServerPid}) ->
     UserTokens = string:tokens(UserLine, " \n"),
     Username = lists:nth(2, UserTokens),
     % ClientHost = lists:nth(3, UserTokens),
@@ -56,10 +66,10 @@ start({user, UserLine}, {Socket, ServerPid}) ->
     
     {ok, {Ip, _}} = inet:peername(Socket),
     ClientHost = inet_parse:ntoa(Ip),
-    {next_state, user, {Socket, ServerPid, "", Username, ClientHost, ServerName, RealName}}.
+    {next_state, user, {ParentPid, Socket, ServerPid, "", Username, ClientHost, ServerName, RealName}}.
 
 
-nick({user, UserLine}, {Socket, ServerPid, Nick}) ->
+nick({user, UserLine}, {ParentPid, Socket, ServerPid, Nick}) ->
     UserTokens = string:tokens(UserLine, " \n"),
     Username = lists:nth(2, UserTokens),
     % ClientHost = lists:nth(3, UserTokens),
@@ -69,35 +79,27 @@ nick({user, UserLine}, {Socket, ServerPid, Nick}) ->
     {ok, {Ip, _}} = inet:peername(Socket),
     ClientHost = inet_parse:ntoa(Ip),
 
-    finish({Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName}).
+    finish({ParentPid, Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName}).
     
-user({nick, Nick}, {Socket, ServerPid, _, Username, ClientHost, ServerName, RealName}) ->
+user({nick, Nick}, {ParentPid, Socket, ServerPid, _, Username, ClientHost, ServerName, RealName}) ->
     % Make sure the nick is available
     case state:get_user(ServerPid, Nick) of
         false ->
-                finish({Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName});
+            finish({ParentPid, Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName});
         _ ->
             FinalMessage = ":" ++ ?SERVER_NAME ++ " 433 " ++ Nick ++ " Nickname is already in use\r\n",
             gen_tcp:send(Socket, FinalMessage),
-            {next_state, user, {Socket, ServerPid, "", Username, ClientHost, ServerName, RealName}}
+            {next_state, user, {ParentPid, Socket, ServerPid, "", Username, ClientHost, ServerName, RealName}}
     end.
     
-finish({Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName}) ->
+finish({ParentPid, Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName}) ->
     % We're spawning the client handlers via the state service so they'll die if it falls over.
-    Pid = state:spawn_handler(ServerPid, Socket),
-    state:add_user(ServerPid, #user{nick=Nick, clientPid=Pid, username=Username, clientHost=ClientHost, serverName=ServerName, realName=RealName}),
-    io:format("Created client ~p~n", [Pid]),
+    ClientPid = state:spawn_handler(ServerPid, Socket),
+    state:add_user(ServerPid, #user{nick=Nick, clientPid=ClientPid, username=Username, clientHost=ClientHost, serverName=ServerName, realName=RealName}),
+    io:format("Created client ~p~n", [ClientPid]),
     % Chance of losing messages before we switch controlling process? :-/
-    case gen_tcp:controlling_process(Socket, Pid) of
-        ok ->
-            io:format("Control for socket ~p transferred to ~p~n", [Socket, Pid]);
-        {error, Reason} ->
-            io:format("Control for socket ~p transfer failed! ~p~n", [Socket, Reason])
-    end,
-    gen_tcp:send(Socket, ":" ++ ?SERVER_NAME ++ " 001 " ++ Nick ++ " :Welcome to " ++ ?SERVER_NAME ++ "\r\n"),
-    gen_tcp:send(Socket, ":" ++ ?SERVER_NAME ++ " 002 " ++ Nick ++ " :Powered by not_invented_here\r\n"),
-    gen_tcp:send(Socket, ":" ++ ?SERVER_NAME ++ " 003 " ++ Nick ++ " :Y U NO WERK?!\r\n"),
-    {stop, normal, {Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName}}.
+    ParentPid ! {stop, {ClientPid, Socket, Nick}},
+    {stop, normal, {ParentPid, Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName}}.
     
 init(ServerPid) ->
     {ok, start, ServerPid}.
