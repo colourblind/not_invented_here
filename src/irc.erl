@@ -27,14 +27,12 @@ unknown(Pid, SenderPid, Command) ->
     % Would be nice to be able to deal with this directly in the client_handler,
     % but we don't have access to the user nick
     Sender = state:get_user(Pid, SenderPid),
-    FinalMessage = ":" ++ ?SERVER_NAME ++ " 421 " ++ Sender#user.nick ++ " " ++ Command ++ " :Unknown command\r\n",
-    client_handler:send_message(SenderPid, FinalMessage).
+    client_handler:send_message(SenderPid, utils:err_msg(unknowncommand, Sender, Command)).
     
 send_to_user(Pid, Sender, RecipientNick, Message) ->
     case state:get_user(Pid, RecipientNick) of
         false ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 401 " ++ Sender#user.nick ++ " " ++ RecipientNick ++ " :No such nick/channel\r\n",
-            client_handler:send_message(Sender#user.clientPid, FinalMessage);
+            client_handler:send_message(Sender#user.clientPid, utils:err_msg(nosuchnick, Sender, RecipientNick));
         Recipient ->
             FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Recipient#user.nick ++ " :" ++ Message ++ "\r\n",
             io:format("SENDING '~p'~n", [FinalMessage]),
@@ -44,13 +42,11 @@ send_to_user(Pid, Sender, RecipientNick, Message) ->
 send_to_channel(Pid, Sender, RecipientChannel, Message) ->
     case state:get_channel(Pid, RecipientChannel) of
         false ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 401 " ++ Sender#user.nick ++ " " ++ RecipientChannel ++ " :No such nick/channel\r\n",
-            client_handler:send_message(Sender#user.clientPid, FinalMessage);
+            client_handler:send_message(Sender#user.clientPid, utils:err_msg(nosuchnick, Sender, RecipientChannel));
         Channel ->
             case lists:member($n, Channel#channel.mode) and not lists:member(Sender#user.clientPid, Channel#channel.users) of
                 true ->
-                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 404 " ++ Sender#user.nick ++ " " ++ RecipientChannel ++ " :Cannot send to channel\r\n",
-                    client_handler:send_message(Sender#user.clientPid, FinalMessage);
+                    client_handler:send_message(Sender#user.clientPid, utils:err_msg(cannotsendtochan, Sender, RecipientChannel));
                 false ->
                     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
                     io:format("SENDING '~p'~n", [FinalMessage]),
@@ -81,7 +77,7 @@ part(Pid, SenderPid, ChannelName) ->
     Sender = state:get_user(Pid, SenderPid),
     case state:part_channel(Pid, ChannelName, Sender) of
         false ->
-            client_handler:send_message(SenderPid, ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such channel\r\n");
+            client_handler:send_message(SenderPid, utils:err_msg(nosuchchannel, Sender, ChannelName));
         ok ->
             FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PART " ++ " :"  ++ ChannelName ++ "\r\n",
             send_raw_to_channel(Pid, ChannelName, FinalMessage),
@@ -113,8 +109,7 @@ mode(Pid, SenderPid, Params) when length(Params) == 1 ->
     Sender = state:get_user(Pid, SenderPid),
     case state:get_channel(Pid, ChannelName) of
         false ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ hd(Params) ++ " :No such channel\r\n",
-            client_handler:send_message(SenderPid, FinalMessage);
+            client_handler:send_message(SenderPid, utils:err_msg(nosuchchannel, Sender, hd(Params)));
         Channel ->
             FinalMessage = ":" ++ ?SERVER_NAME ++ " 324 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " +" ++ Channel#channel.mode ++ "\r\n",
             client_handler:send_message(SenderPid, FinalMessage)
@@ -123,13 +118,11 @@ mode(Pid, SenderPid, Params) when length(Params) == 2 ->
     Sender = state:get_user(Pid, SenderPid),
     case state:get_channel(Pid, hd(Params)) of
         false ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ hd(Params) ++ " :No such channel\r\n",
-            client_handler:send_message(SenderPid, FinalMessage);
+            client_handler:send_message(SenderPid, utils:err_msg(nosuchchannel, Sender, hd(Params)));
         Channel ->
             case lists:member(SenderPid, Channel#channel.ops) of
                 false ->
-                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 482 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " :You're not channel operator\r\n",
-                    client_handler:send_message(Sender#user.clientPid, FinalMessage);
+                    client_handler:send_message(Sender#user.clientPid, utils:err_msg(chanoprivsneeded, Sender, Channel#channel.name));
                 true ->
                     Mode = hd(tl(Params)),
                     NewMode = utils:resolve_mode(Channel#channel.mode, Mode),
@@ -142,23 +135,20 @@ mode(Pid, SenderPid, Params) when length(Params) == 3 ->
     Sender = state:get_user(Pid, SenderPid),
     case state:get_channel(Pid, hd(Params)) of
         false ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ hd(Params) ++ " :No such channel\r\n",
-            client_handler:send_message(SenderPid, FinalMessage);
+            client_handler:send_message(SenderPid, utils:err_msg(nosuchchannel, Sender, hd(Params)));
         Channel ->
             case lists:member(SenderPid, Channel#channel.ops) of
                 true ->
                     Mode = hd(tl(Params)),
                     mode(Pid, Sender, lists:nth(2, Mode), Channel, Params);
                 false ->
-                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 482 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " :You're not channel operator\r\n",
-                    client_handler:send_message(Sender#user.clientPid, FinalMessage)
+                    client_handler:send_message(SenderPid, utils:err_msg(chanoprivsneeded, Sender, Channel#channel.name))
             end
     end.
 mode(Pid, Sender, $o, Channel, Params) ->
     case state:get_user(Pid, lists:nth(3, Params)) of
         false ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 401 " ++ Sender#user.nick ++ " " ++ lists:nth(3, Params) ++ " :No such nick/channel\r\n",
-            client_handler:send_message(Sender#user.clientPid, FinalMessage);
+            client_handler:send_message(Sender#user.clientPid, utils:err_msg(nosuchnick, Sender, lists:nth(3, Params)));
         User ->
             case hd(lists:nth(2, Params)) of
                 $+ ->
@@ -176,7 +166,7 @@ topic(Pid, SenderPid, Params) when length(Params) == 1 ->
     Sender = state:get_user(Pid, SenderPid),
     case state:get_channel(Pid, ChannelName) of 
         false ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such channel\r\n";
+            FinalMessage = utils:err_msg(nosuchchannel, Sender, ChannelName);
         Channel ->
             case Channel#channel.topic of
                 "" ->
@@ -192,13 +182,11 @@ topic(Pid, SenderPid, Params) when length(Params) == 2 ->
     Sender = state:get_user(Pid, SenderPid),
     case state:get_channel(Pid, ChannelName) of
         false ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such channel\r\n",
-            client_handler:send_message(SenderPid, FinalMessage);
+            client_handler:send_message(SenderPid, utils:err_msg(nosuchchannel, Sender, ChannelName));
         Channel ->
             case lists:member($t, Channel#channel.mode) and not lists:member(Sender#user.clientPid, Channel#channel.ops) of
                 true ->
-                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 482 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :You're not channel operator\r\n",
-                    client_handler:send_message(SenderPid, FinalMessage);
+                    client_handler:send_message(SenderPid, utils:err_msg(chanoprivsneeded, Sender, ChannelName));
                 false ->
                     state:set_topic(Pid, Channel, NewTopic),
                     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " TOPIC " ++ ChannelName ++ " :" ++ NewTopic ++ "\r\n",
@@ -224,8 +212,7 @@ nick(Pid, SenderPid, NewNick) ->
             UserList = lists:foldl(fun(Channel, Acc) -> lists:append(Channel#channel.users, Acc) end, [], ChannelList),
             lists:foreach(fun(ClientPid) -> client_handler:send_message(ClientPid, FinalMessage) end, lists:usort(UserList));
         _ ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 433 " ++ Sender#user.nick ++ " Nickname is already in use\r\n",
-            client_handler:send_message(SenderPid, FinalMessage)
+            client_handler:send_message(SenderPid, utils:err_msg(nicknameinuse, Sender, NewNick))
     end.
 
 userhost(Pid, SenderPid, NewNick) ->
@@ -244,8 +231,7 @@ kick(Pid, SenderPid, Params) ->
     ChannelName = hd(Params),
     case state:get_channel(Pid, hd(Params)) of
         false ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such channel\r\n",
-            client_handler:send_message(SenderPid, FinalMessage);
+            client_handler:send_message(SenderPid, utils:err_msg(nosuchchannel, Sender, ChannelName));
         Channel ->
             case lists:member(Sender#user.clientPid, Channel#channel.ops) of
                 true ->
@@ -261,7 +247,6 @@ kick(Pid, SenderPid, Params) ->
                             client_handler:send_message(User#user.clientPid, FinalMessage)
                     end;
                 false ->
-                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 482 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :You're not channel operator\r\n",
-                    client_handler:send_message(SenderPid, FinalMessage)
+                    client_handler:send_message(SenderPid, utils:err_msg(chanoprivsneeded, Sender, ChannelName))
             end
     end.
