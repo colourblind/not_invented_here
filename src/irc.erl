@@ -4,6 +4,7 @@
 -include("records.hrl").
 
 -export([send_message/4, unknown/3, join/3, part/3, names/3, list/2, mode/3, topic/3, quit/3, nick/3, userhost/3]).
+-export([kick/3]).
 
 send_message(Pid, SenderPid, Recipient, Message) ->
     case Message of
@@ -236,4 +237,31 @@ userhost(Pid, SenderPid, NewNick) ->
         User ->
             FinalMessage = ":" ++ ?SERVER_NAME ++ " 302 " ++ Sender#user.nick ++ " :" ++ User#user.nick ++ "=+~" ++ User#user.username ++ "@" ++ User#user.clientHost ++ "\r\n",
             client_handler:send_message(SenderPid, FinalMessage)
+    end.
+    
+kick(Pid, SenderPid, Params) ->
+    Sender = state:get_user(Pid, SenderPid),
+    ChannelName = hd(Params),
+    case state:get_channel(Pid, hd(Params)) of
+        false ->
+            FinalMessage = ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such channel\r\n",
+            client_handler:send_message(SenderPid, FinalMessage);
+        Channel ->
+            case lists:member(Sender#user.clientPid, Channel#channel.ops) of
+                true ->
+                    case state:get_user(Pid, hd(tl(Params))) of
+                        false ->
+                            % TODO: nowwhat?
+                            ok;
+                        User ->
+                            state:part_channel(Pid, Channel#channel.name, User),
+                            % Todo message
+                            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " KICK " ++ ChannelName ++ " :" ++ User#user.nick ++ "\r\n",
+                            send_raw_to_channel(Pid, ChannelName, FinalMessage),
+                            client_handler:send_message(User#user.clientPid, FinalMessage)
+                    end;
+                false ->
+                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 482 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :You're not channel operator\r\n",
+                    client_handler:send_message(SenderPid, FinalMessage)
+            end
     end.

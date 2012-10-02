@@ -46,6 +46,8 @@ handle_info({tcp, Socket, Data}, State) ->
             irc:nick(element(1, State), self(), lists:nth(1, Params));
         "USERHOST" ->
             irc:userhost(element(1, State), self(), lists:nth(1, Params));
+        "KICK" ->
+            irc:kick(element(1, State), self(), Params);
         "QUIT" ->
             irc:quit(element(1, State), self(), lists:nth(1, Params)),
             gen_tcp:close(Socket),
