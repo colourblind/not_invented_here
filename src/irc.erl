@@ -4,7 +4,7 @@
 -include("records.hrl").
 
 -export([send_message/4, unknown/3, join/3, part/3, names/3, list/2, mode/3, topic/3, quit/3, nick/3, userhost/3]).
--export([kick/3]).
+-export([kick/3, whois/3]).
 
 send_message(Pid, SenderPid, Recipient, Message) ->
     case Message of
@@ -249,4 +249,14 @@ kick(Pid, SenderPid, Params) ->
                 false ->
                     client_handler:send_message(SenderPid, utils:err_msg(chanoprivsneeded, Sender, ChannelName))
             end
+    end.
+
+whois(Pid, SenderPid, Nick) ->
+    Sender = state:get_user(Pid, SenderPid),
+    case state:get_user(Pid, Nick) of
+        false ->
+            client_handler:send_message(SenderPid, utils:err_msg(nosuchnick, Sender, Nick));
+        User ->
+            client_handler:send_message(SenderPid, ":" ++ ?SERVER_NAME ++ " 311 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " " ++ User#user.username ++ " " ++ User#user.clientHost ++ " * :" ++ User#user.realName ++ "\r\n"),
+            client_handler:send_message(SenderPid, ":" ++ ?SERVER_NAME ++ " 318 " ++ Sender#user.nick ++ " :End of /WHOIS list\r\n")
     end.
