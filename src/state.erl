@@ -6,7 +6,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([get_user/2, get_channel/2, get_channels/1, get_channels_for_user/2]).
 -export([add_user/2, remove_user/2, join_channel/3, part_channel/3, change_nick/3]).
--export([set_channel_mode/3, set_chanop/3, remove_chanop/3, set_topic/3]).
+-export([set_channel_mode/3, set_chanop/3, remove_chanop/3, set_voice/3, remove_voice/3]).
+-export([set_topic/3]).
 -export([start_link/0, spawn_handler/2]).
 
 get_user(Pid, Id) ->
@@ -44,6 +45,12 @@ set_chanop(Pid, Channel, ClientPid) ->
     
 remove_chanop(Pid, Channel, ClientPid) ->
     gen_server:call(Pid, {remove_chanop, Channel, ClientPid}).
+    
+set_voice(Pid, Channel, ClientPid) ->
+    gen_server:call(Pid, {set_voice, Channel, ClientPid}).
+    
+remove_voice(Pid, Channel, ClientPid) ->
+    gen_server:call(Pid, {remove_voice, Channel, ClientPid}).
     
 set_topic(Pid, Channel, NewTopic) ->
     gen_server:call(Pid, {set_topic, Channel, NewTopic}).
@@ -83,7 +90,7 @@ handle_call({join_channel, ChannelName, User}, _, State) ->
     case Channel of
         false ->
             io:format("Creating channel ~p~n", [ChannelName]),
-            NewChan = #channel{name=ChannelName, topic="Test topic", users=[User#user.clientPid], mode="nt", ops=[User#user.clientPid]}, 
+            NewChan = #channel{name=ChannelName, topic="Test topic", users=[User#user.clientPid], mode="nt", ops=[User#user.clientPid], voices=[]}, 
             % set up user as chanop
             NewState = {element(1, State), [NewChan|element(2, State)]};
         _ ->
@@ -100,7 +107,8 @@ handle_call({part_channel, ChannelName, User}, _, State) ->
             Result = false;
         _ ->
             % Yuck. There must be a better way . . .
-            NewChan1 = setelement(4, Channel, lists:delete(User#user.clientPid, Channel#channel.users)),
+            NewChan2 = setelement(7, Channel, lists:delete(User#user.clientPid, Channel#channel.voices)),
+            NewChan1 = setelement(4, NewChan2, lists:delete(User#user.clientPid, Channel#channel.users)),
             NewChan = setelement(6, NewChan1, lists:delete(User#user.clientPid, NewChan1#channel.ops)),
             case length(NewChan#channel.users) of
                 0 ->
@@ -130,10 +138,15 @@ handle_call({change_nick, NewNick, User}, _, State) ->
     {reply, ok, {NewUserList, element(2, State)}};
 handle_call({set_chanop, Channel, ClientPid}, _, State) ->
     NewChan = setelement(6, Channel, lists:usort([ClientPid|Channel#channel.ops])),
-    io:format("~p~n", [NewChan]),
     {reply, ok, {element(1, State), lists:keyreplace(Channel#channel.name, 2, element(2, State), NewChan)}};
 handle_call({remove_chanop, Channel, ClientPid}, _, State) ->
     NewChan = setelement(6, Channel, lists:delete(ClientPid, Channel#channel.ops)),
+    {reply, ok, {element(1, State), lists:keyreplace(Channel#channel.name, 2, element(2, State), NewChan)}};
+handle_call({set_voice, Channel, ClientPid}, _, State) ->
+    NewChan = setelement(7, Channel, lists:usort([ClientPid|Channel#channel.voices])),
+    {reply, ok, {element(1, State), lists:keyreplace(Channel#channel.name, 2, element(2, State), NewChan)}};
+handle_call({remove_voice, Channel, ClientPid}, _, State) ->
+    NewChan = setelement(7, Channel, lists:delete(ClientPid, Channel#channel.voices)),
     {reply, ok, {element(1, State), lists:keyreplace(Channel#channel.name, 2, element(2, State), NewChan)}};
 handle_call({set_topic, Channel, NewTopic}, _, State) ->
     NewChan = setelement(3, Channel, NewTopic),

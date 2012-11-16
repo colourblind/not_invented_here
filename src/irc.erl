@@ -91,7 +91,7 @@ names(Pid, SenderPid, ChannelName) ->
             ok;
         Channel ->
             UserList = lists:map(fun(ClientPid) -> state:get_user(Pid, ClientPid) end, Channel#channel.users),
-            NickList = lists:map(fun(User) -> utils:fix_nick(User, Channel#channel.ops) end, UserList),
+            NickList = lists:map(fun(User) -> utils:fix_nick(User, Channel#channel.ops, Channel#channel.voices) end, UserList),
             client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 353 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ string:join(NickList, " ") ++ "\r\n")
     end,
     client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 366 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :End of /NAMES list.\r\n").
@@ -157,6 +157,21 @@ mode(Pid, Sender, $o, Channel, Params) ->
                 $- ->
                     state:remove_chanop(Pid, Channel, User#user.clientPid),
                     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " -o " ++ User#user.nick ++ "\r\n"
+            end,
+            send_raw_to_channel(Pid, Channel#channel.name, FinalMessage)
+    end;
+mode(Pid, Sender, $v, Channel, Params) ->
+    case state:get_user(Pid, lists:nth(3, Params)) of
+        false ->
+            client_handler:send_message(Sender#user.clientPid, utils:err_msg(nosuchnick, Sender, lists:nth(3, Params)));
+        User ->
+            case hd(lists:nth(2, Params)) of
+                $+ ->
+                    state:set_voice(Pid, Channel, User#user.clientPid),
+                    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " +v " ++ User#user.nick ++ "\r\n";
+                $- ->
+                    state:remove_voice(Pid, Channel, User#user.clientPid),
+                    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " -v " ++ User#user.nick ++ "\r\n"
             end,
             send_raw_to_channel(Pid, Channel#channel.name, FinalMessage)
     end.

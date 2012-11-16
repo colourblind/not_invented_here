@@ -5,7 +5,7 @@
 
 -export([get_server_prefix/1, get_server_command/1, get_server_params/1]).
 -export([get_client_command/1, get_client_params/1]).
--export([get_user_prefix/1, resolve_mode/2, fix_nick/2, err_msg/3]).
+-export([get_user_prefix/1, resolve_mode/2, fix_nick/3, err_msg/3]).
 -export([replace/3, date_diff/2]).
 
 get_server_prefix(Message) ->
@@ -40,12 +40,17 @@ resolve_mode(ModeString, NewModes) ->
     end,
     lists:usort(Result).
     
-fix_nick(User, OpList) ->
+fix_nick(User, OpList, VoiceList) ->
     case lists:member(User#user.clientPid, OpList) of
         true ->
             "@" ++ User#user.nick;
         false ->
-            User#user.nick
+            case lists:member(User#user.clientPid, VoiceList) of
+                true ->
+                    "+" ++ User#user.nick;
+                false ->
+                    User#user.nick
+            end
     end.
     
 err_msg(nosuchnick, Sender, ChannelName) ->
