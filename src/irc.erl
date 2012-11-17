@@ -48,10 +48,15 @@ send_to_channel(Pid, Sender, RecipientChannel, Message) ->
                 true ->
                     client_handler:send_message(Sender#user.clientPid, utils:err_msg(cannotsendtochan, Sender, RecipientChannel));
                 false ->
-                    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
-                    io:format("SENDING '~p'~n", [FinalMessage]),
-                    UserList = lists:delete(Sender#user.clientPid, Channel#channel.users),
-                    lists:foreach(fun(ClientPid) -> client_handler:send_message(ClientPid, FinalMessage) end, UserList)
+                    case lists:member($m, Channel#channel.mode) and not (lists:member(Sender#user.clientPid, Channel#channel.ops) or lists:member(Sender#user.clientPid, Channel#channel.voices)) of
+                        true ->
+                            client_handler:send_message(Sender#user.clientPid, utils:err_msg(cannotsendtochan, Sender, RecipientChannel));
+                        false ->
+                            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
+                            io:format("SENDING '~p'~n", [FinalMessage]),
+                            UserList = lists:delete(Sender#user.clientPid, Channel#channel.users),
+                            lists:foreach(fun(ClientPid) -> client_handler:send_message(ClientPid, FinalMessage) end, UserList)
+                    end
             end
     end.
     
