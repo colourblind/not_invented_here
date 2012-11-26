@@ -72,11 +72,16 @@ send_raw_to_channel(Pid, RecipientChannel, Message) ->
 join(Pid, SenderPid, ChannelName) ->
     % TODO - check for valid channel name
     Sender = state:get_user(Pid, SenderPid),
-    Channel = state:join_channel(Pid, ChannelName, Sender),
-    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " JOIN " ++ " :"  ++ Channel#channel.name ++ "\r\n",
-    send_raw_to_channel(Pid, ChannelName, FinalMessage),
-    topic(Pid, SenderPid, [ChannelName]),
-    names(Pid, SenderPid, ChannelName).
+    case user_can_join_channel(Pid, Sender, ChannelName) of
+        false ->
+            client_handler:send_message(Sender#user.clientPid, utils:err_msg(bannedfromchan, Sender, ChannelName));
+        true ->
+            Channel = state:join_channel(Pid, ChannelName, Sender),
+            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " JOIN " ++ " :"  ++ Channel#channel.name ++ "\r\n",
+            send_raw_to_channel(Pid, ChannelName, FinalMessage),
+            topic(Pid, SenderPid, [ChannelName]),
+            names(Pid, SenderPid, ChannelName)
+    end.
 
 part(Pid, SenderPid, ChannelName) ->
     Sender = state:get_user(Pid, SenderPid),
@@ -179,7 +184,18 @@ mode(Pid, Sender, $v, Channel, Params) ->
                     FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " -v " ++ User#user.nick ++ "\r\n"
             end,
             send_raw_to_channel(Pid, Channel#channel.name, FinalMessage)
-    end.
+    end;
+mode(Pid, Sender, $b, Channel, Params) ->
+    Hostmask = lists:nth(3, Params),
+    case hd(lists:nth(2, Params)) of
+        $+ ->
+            state:set_ban(Pid, Channel, Hostmask),
+            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " +b " ++ Hostmask ++ "\r\n";
+        $- ->
+            state:remove_ban(Pid, Channel, Hostmask),
+            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " -b " ++ Hostmask ++ "\r\n"
+    end,
+    send_raw_to_channel(Pid, Channel#channel.name, FinalMessage).
     
 topic(Pid, SenderPid, Params) when length(Params) == 1 ->
     ChannelName = hd(Params),
@@ -280,3 +296,20 @@ whois(Pid, SenderPid, Nick) ->
             client_handler:send_message(SenderPid, ":" ++ ?SERVER_NAME ++ " 311 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " " ++ User#user.username ++ " " ++ User#user.clientHost ++ " * :" ++ User#user.realName ++ "\r\n"),
             client_handler:send_message(SenderPid, ":" ++ ?SERVER_NAME ++ " 318 " ++ Sender#user.nick ++ " :End of /WHOIS list\r\n")
     end.
+    
+% Helper functions
+    
+user_can_join_channel(Pid, Sender, ChannelName) ->
+    case state:get_channel(Pid, ChannelName) of
+        false ->
+            true;
+        Channel ->
+            UserPrefix = utils:get_user_prefix(Sender),
+            case lists:foldl(fun(X, Found) -> Found or utils:match_hostmask(UserPrefix, X) end, false, Channel#channel.bans) of
+                true ->
+                    false;
+                false ->
+                    true
+            end
+    end.
+

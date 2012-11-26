@@ -7,7 +7,7 @@
 -export([get_user/2, get_channel/2, get_channels/1, get_channels_for_user/2]).
 -export([add_user/2, remove_user/2, join_channel/3, part_channel/3, change_nick/3]).
 -export([set_channel_mode/3, set_chanop/3, remove_chanop/3, set_voice/3, remove_voice/3]).
--export([set_topic/3]).
+-export([set_ban/3, remove_ban/3, set_topic/3]).
 -export([start_link/0, spawn_handler/2]).
 
 get_user(Pid, Id) ->
@@ -52,6 +52,12 @@ set_voice(Pid, Channel, ClientPid) ->
 remove_voice(Pid, Channel, ClientPid) ->
     gen_server:call(Pid, {remove_voice, Channel, ClientPid}).
     
+set_ban(Pid, Channel, Hostmask) ->
+    gen_server:call(Pid, {set_ban, Channel, Hostmask}).
+    
+remove_ban(Pid, Channel, Hostmask) ->
+    gen_server:call(Pid, {remove_ban, Channel, Hostmask}).
+    
 set_topic(Pid, Channel, NewTopic) ->
     gen_server:call(Pid, {set_topic, Channel, NewTopic}).
 
@@ -90,7 +96,7 @@ handle_call({join_channel, ChannelName, User}, _, State) ->
     case Channel of
         false ->
             io:format("Creating channel ~p~n", [ChannelName]),
-            NewChan = #channel{name=ChannelName, topic="Test topic", users=[User#user.clientPid], mode="nt", ops=[User#user.clientPid], voices=[]}, 
+            NewChan = #channel{name=ChannelName, topic="Test topic", users=[User#user.clientPid], mode="nt", ops=[User#user.clientPid], voices=[], bans=[]}, 
             % set up user as chanop
             NewState = {element(1, State), [NewChan|element(2, State)]};
         _ ->
@@ -147,6 +153,12 @@ handle_call({set_voice, Channel, ClientPid}, _, State) ->
     {reply, ok, {element(1, State), lists:keyreplace(Channel#channel.name, 2, element(2, State), NewChan)}};
 handle_call({remove_voice, Channel, ClientPid}, _, State) ->
     NewChan = setelement(7, Channel, lists:delete(ClientPid, Channel#channel.voices)),
+    {reply, ok, {element(1, State), lists:keyreplace(Channel#channel.name, 2, element(2, State), NewChan)}};
+handle_call({set_ban, Channel, Hostmask}, _, State) ->
+    NewChan = setelement(8, Channel, lists:usort([Hostmask|Channel#channel.bans])),
+    {reply, ok, {element(1, State), lists:keyreplace(Channel#channel.name, 2, element(2, State), NewChan)}};
+handle_call({remove_ban, Channel, Hostmask}, _, State) ->
+    NewChan = setelement(8, Channel, lists:delete(Hostmask, Channel#channel.bans)),
     {reply, ok, {element(1, State), lists:keyreplace(Channel#channel.name, 2, element(2, State), NewChan)}};
 handle_call({set_topic, Channel, NewTopic}, _, State) ->
     NewChan = setelement(3, Channel, NewTopic),

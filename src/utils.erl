@@ -63,6 +63,8 @@ err_msg(unknowncommand, Sender, Command) ->
     ":" ++ ?SERVER_NAME ++ " 421 " ++ Sender#user.nick ++ " " ++ Command ++ " :Unknown command\r\n";
 err_msg(nicknameinuse, Sender, Nick) ->
     ":" ++ ?SERVER_NAME ++ " 433 " ++ Sender#user.nick ++ " " ++ Nick ++ " Nickname is already in use\r\n";
+err_msg(bannedfromchan, Sender, ChannelName) ->
+    ":" ++ ?SERVER_NAME ++ " 474 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :Cannot join channel (+b)\r\n";
 err_msg(chanoprivsneeded, Sender, ChannelName) ->
     ":" ++ ?SERVER_NAME ++ " 482 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :You're not channel operator\r\n".
 
