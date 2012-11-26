@@ -6,7 +6,7 @@
 -export([get_server_prefix/1, get_server_command/1, get_server_params/1]).
 -export([get_client_command/1, get_client_params/1]).
 -export([get_user_prefix/1, resolve_mode/2, fix_nick/3, err_msg/3]).
--export([replace/3, date_diff/2]).
+-export([replace/3, date_diff/2, match_hostmask/2]).
 
 get_server_prefix(Message) ->
     hd(string:tokens(Message, " ")).
@@ -81,6 +81,41 @@ replace(Search, Replace, List) -> replace(Search, Replace, List, []).
 replace(_Search, _Replace, [], NewList) -> NewList;
 replace(Search, Replace, [Search|OldTail], NewList) -> replace(Search, Replace, OldTail, [Replace|NewList]);
 replace(Search, Replace, [NonMatch|OldTail], NewList) -> replace(Search, Replace, OldTail, [NonMatch|NewList]).
+
+match_hostmask(Input, Pattern) ->
+    match_hostmask(Input, Pattern, []).
+    
+match_hostmask([], [], _) ->
+    true;
+match_hostmask(_, [$*], _) ->
+    true;
+match_hostmask(Remains, [], Remains) ->
+    true;
+match_hostmask(_, [], _) ->
+    false;
+match_hostmask([], _, []) ->
+    false;
+match_hostmask([], _, _) ->
+    true;
+match_hostmask(Input, Pattern, Start) ->
+    case hd(Input) =:= hd(Pattern) of
+        true ->
+            match_hostmask(tl(Input), tl(Pattern), Start);
+        false ->
+            case hd(Pattern) of
+                $* ->
+                    match_hostmask(Input, tl(Pattern), tl(Pattern));
+                $? ->
+                    match_hostmask(tl(Input), tl(Pattern), []);
+                _ ->
+                    case length(Start) of
+                        0 ->
+                            false;
+                        _ ->
+                            match_hostmask(tl(Input), Start, Start)
+                    end
+            end
+    end.
 
 date_diff(T1, T2) ->
     S1 = calendar:datetime_to_gregorian_seconds(T1),
