@@ -124,6 +124,15 @@ mode(Pid, SenderPid, Params) when length(Params) == 1 ->
             FinalMessage = ":" ++ ?SERVER_NAME ++ " 324 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " +" ++ Channel#channel.mode ++ "\r\n",
             client_handler:send_message(SenderPid, FinalMessage)
     end;
+mode(Pid, SenderPid, [ChannelName, "+b"]) ->
+    Sender = state:get_user(Pid, SenderPid),
+    case state:get_channel(Pid, ChannelName) of
+        false ->
+            client_handler:send_message(SenderPid, utils:err_msg(nosuchchannel, Sender, ChannelName));
+        Channel ->
+            lists:foreach(fun(Banmask) -> client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 367 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " " ++ Banmask ++ "\r\n") end, Channel#channel.bans),
+            client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 368 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " :End of channel ban list\r\n")
+    end;
 mode(Pid, SenderPid, Params) when length(Params) == 2 ->
     Sender = state:get_user(Pid, SenderPid),
     case state:get_channel(Pid, hd(Params)) of
