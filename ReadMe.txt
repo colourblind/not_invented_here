@@ -4,7 +4,6 @@ TODO:
 - Better WHOIS support (idle times, etc)
 - KICK messages
 - Handle tcp_closed
-- Server-to-client PINGs
 - MODEs sp
 - MODEs l
 - MODEs ki

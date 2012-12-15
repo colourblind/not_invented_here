@@ -1,6 +1,8 @@
 -module(client_handler).
 -behaviour(gen_server).
 
+-include("config.hrl").
+
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([send_message/2, start_link/2]).
 
@@ -12,7 +14,8 @@ start_link(ServerPid, Socket) ->
 
 init({ServerPid, Socket}) ->
     io:format("Initialising client_handler!~nState: ~p~nSocket ~p~n", [ServerPid, Socket]),
-    {ok, {ServerPid, Socket}}.
+    erlang:send_after(?PING_INTERVAL, self(), send_ping),
+    {ok, {ServerPid, Socket, false}}.
 
 handle_call(Request, {Pid, Tag}, State) ->
     io:format("handle_call ~p from ~p ~p with state ~p~n", [Request, Pid, Tag, State]),
@@ -24,6 +27,10 @@ handle_cast({irc, Message}, State) ->
     gen_tcp:send(element(2, State), Message),
     {noreply, State}.
 
+handle_info({tcp, Socket, "PONG\n"}, State) ->
+    io:format("Received client PONG ~p~n", [Socket]),
+    erlang:send_after(?PING_INTERVAL, self(), send_ping),
+    {noreply, setelement(3, State, false)};
 handle_info({tcp, Socket, Data}, State) ->
     io:format("handle_info TCP ~p ~p~n", [Socket, Data]),
     Params = utils:get_client_params(Data),
@@ -61,8 +68,19 @@ handle_info({tcp, Socket, Data}, State) ->
             irc:unknown(element(1, State), self(), Command)
     end,
     {noreply, State};
-handle_info(Info, State) ->
-    io:format("handle_info ~p with state ~p~n", [Info, State]),
+handle_info(send_ping, State) ->
+    gen_tcp:send(element(2, State), "PING\n"),
+    erlang:send_after(?PING_TIMEOUT, self(), ping_timeout),
+    {noreply, setelement(3, State, true)};
+handle_info(ping_timeout, State) ->
+    case element(3, State) of
+        true ->
+            irc:quit(element(1, State), self(), "Ping timeout"),
+            gen_tcp:close(element(2, State)),
+            gen_server:cast(self(), stop);
+        false ->
+            ok
+    end,
     {noreply, State}.
 
 terminate(Reason, State) ->

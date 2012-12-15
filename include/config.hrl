@@ -1,1 +1,3 @@
 -define(SERVER_NAME, "test.server").
+-define(PING_INTERVAL, 30000).
+-define(PING_TIMEOUT, 5000).
