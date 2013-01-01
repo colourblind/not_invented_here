@@ -27,8 +27,8 @@ handle_cast({irc, Message}, State) ->
     gen_tcp:send(element(2, State), Message),
     {noreply, State}.
 
-handle_info({tcp, Socket, "PONG\n"}, State) ->
-    io:format("Received client PONG ~p~n", [Socket]),
+handle_info({tcp, Socket, "PONG :" ++ ?SERVER_NAME ++ "\n"}, State) ->
+    io:format("Received client PONG \\n ~p~n", [Socket]),
     erlang:send_after(?PING_INTERVAL, self(), send_ping),
     {noreply, setelement(3, State, false)};
 handle_info({tcp, Socket, Data}, State) ->
@@ -63,13 +63,13 @@ handle_info({tcp, Socket, Data}, State) ->
             gen_server:cast(self(), stop);
         "PING" ->
             io:format("Reponding to client PING~n"),
-            gen_tcp:send(element(2, State), "PONG :" ++ lists:nth(1, Params) ++ "\n");
+            gen_tcp:send(element(2, State), "PONG :" ++ lists:nth(1, Params) ++ "\r\n");
         Command ->
             irc:unknown(element(1, State), self(), Command)
     end,
     {noreply, State};
 handle_info(send_ping, State) ->
-    gen_tcp:send(element(2, State), "PING\n"),
+    gen_tcp:send(element(2, State), "PING :" ++ ?SERVER_NAME ++ "\r\n"),
     erlang:send_after(?PING_TIMEOUT, self(), ping_timeout),
     {noreply, setelement(3, State, true)};
 handle_info(ping_timeout, State) ->
