@@ -45,7 +45,10 @@ handle_info(ping_timeout, State) ->
         false ->
             ok
     end,
-    {noreply, State}.
+    {noreply, State};
+handle_info({tcp_closed, Socket}, State) ->
+    handle_command("QUIT", ["Connection reset by peer"], State, Socket),
+    {stop, normal, State}.
 
 terminate(Reason, State) ->
     io:format("terminate ~p with state ~p~n", [Reason, State]),
