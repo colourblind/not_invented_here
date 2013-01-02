@@ -27,14 +27,40 @@ handle_cast({irc, Message}, State) ->
     gen_tcp:send(element(2, State), Message),
     {noreply, State}.
 
-handle_info({tcp, Socket, "PONG :" ++ ?SERVER_NAME ++ "\n"}, State) ->
-    io:format("Received client PONG \\n ~p~n", [Socket]),
-    erlang:send_after(?PING_INTERVAL, self(), send_ping),
-    {noreply, setelement(3, State, false)};
 handle_info({tcp, Socket, Data}, State) ->
     io:format("handle_info TCP ~p ~p~n", [Socket, Data]),
     Params = utils:get_client_params(Data),
-    case utils:get_client_command(Data) of
+    Command = utils:get_client_command(Data),
+    {noreply, handle_command(Command, Params, State, Socket)};
+handle_info(send_ping, State) ->
+    gen_tcp:send(element(2, State), "PING :" ++ ?SERVER_NAME ++ "\r\n"),
+    erlang:send_after(?PING_TIMEOUT, self(), ping_timeout),
+    {noreply, setelement(3, State, true)};
+handle_info(ping_timeout, State) ->
+    case element(3, State) of
+        true ->
+            irc:quit(element(1, State), self(), "Ping timeout"),
+            gen_tcp:close(element(2, State)),
+            gen_server:cast(self(), stop);
+        false ->
+            ok
+    end,
+    {noreply, State}.
+
+terminate(Reason, State) ->
+    io:format("terminate ~p with state ~p~n", [Reason, State]),
+    ok.
+
+code_change(OldVsn, State, Extra) ->
+    io:format("code_change ~p ~p with state ~p~n", [OldVsn, Extra, State]),
+    {ok, State}.
+    
+handle_command("PONG", _, State, Socket) ->
+    io:format("Received client PONG \\n ~p~n", [Socket]),
+    erlang:send_after(?PING_INTERVAL, self(), send_ping),
+    setelement(3, State, false);
+handle_command(Command, Params, State, Socket) ->
+    case Command of
         "PRIVMSG" ->
             irc:send_message(element(1, State), self(), lists:nth(1, Params), lists:nth(2, Params));
         "JOIN" ->
@@ -67,27 +93,5 @@ handle_info({tcp, Socket, Data}, State) ->
         Command ->
             irc:unknown(element(1, State), self(), Command)
     end,
-    {noreply, State};
-handle_info(send_ping, State) ->
-    gen_tcp:send(element(2, State), "PING :" ++ ?SERVER_NAME ++ "\r\n"),
-    erlang:send_after(?PING_TIMEOUT, self(), ping_timeout),
-    {noreply, setelement(3, State, true)};
-handle_info(ping_timeout, State) ->
-    case element(3, State) of
-        true ->
-            irc:quit(element(1, State), self(), "Ping timeout"),
-            gen_tcp:close(element(2, State)),
-            gen_server:cast(self(), stop);
-        false ->
-            ok
-    end,
-    {noreply, State}.
-
-terminate(Reason, State) ->
-    io:format("terminate ~p with state ~p~n", [Reason, State]),
-    ok.
-
-code_change(OldVsn, State, Extra) ->
-    io:format("code_change ~p ~p with state ~p~n", [OldVsn, Extra, State]),
-    {ok, State}.
-    
+    State.
+        
