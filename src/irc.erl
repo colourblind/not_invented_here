@@ -209,7 +209,7 @@ nick(Pid, SenderPid, NewNick) ->
             state:change_nick(Pid, NewNick, Sender),
             ChannelList = state:get_channels_for_user(Pid, Sender),
             UserList = lists:foldl(fun(Channel, Acc) -> lists:append(Channel#channel.users, Acc) end, [], ChannelList),
-            lists:foreach(fun(ClientPid) -> client_handler:send_message(ClientPid, FinalMessage) end, lists:usort(UserList));
+            lists:foreach(fun(ClientPid) -> client_handler:send_message(ClientPid, FinalMessage) end, lists:usort([SenderPid|UserList]));
         _ ->
             client_handler:send_message(SenderPid, utils:err_msg(nicknameinuse, Sender, NewNick))
     end.
