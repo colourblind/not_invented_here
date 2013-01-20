@@ -3,16 +3,10 @@
 -include("config.hrl").
 -include("records.hrl").
 
--export([send_message/4, unknown/3, join/3, part/3, names/3, list/2, mode/3, topic/3, quit/3, nick/3, userhost/3]).
+-export([privmsg/4, unknown/3, join/3, part/3, names/3, list/2, mode/3, topic/3, quit/3, nick/3, userhost/3]).
 -export([kick/3, whois/3]).
 
-send_message(Pid, SenderPid, Recipient, Message) ->
-    case Message of
-        "EXPLODE" ->
-            erlang:error("Because");
-        _ ->
-            pass
-    end,
+privmsg(Pid, SenderPid, Recipient, Message) ->
     Sender = state:get_user(Pid, SenderPid),
     case hd(Recipient) of
         $# ->
@@ -28,46 +22,6 @@ unknown(Pid, SenderPid, Command) ->
     % but we don't have access to the user nick
     Sender = state:get_user(Pid, SenderPid),
     client_handler:send_message(SenderPid, utils:err_msg(unknowncommand, Sender, Command)).
-    
-send_to_user(Pid, Sender, RecipientNick, Message) ->
-    case state:get_user(Pid, RecipientNick) of
-        false ->
-            client_handler:send_message(Sender#user.clientPid, utils:err_msg(nosuchnick, Sender, RecipientNick));
-        Recipient ->
-            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Recipient#user.nick ++ " :" ++ Message ++ "\r\n",
-            io:format("SENDING '~p'~n", [FinalMessage]),
-            client_handler:send_message(Recipient#user.clientPid, FinalMessage)
-    end.
-    
-send_to_channel(Pid, Sender, RecipientChannel, Message) ->
-    case state:get_channel(Pid, RecipientChannel) of
-        false ->
-            client_handler:send_message(Sender#user.clientPid, utils:err_msg(nosuchnick, Sender, RecipientChannel));
-        Channel ->
-            case lists:member($n, Channel#channel.mode) and not lists:member(Sender#user.clientPid, Channel#channel.users) of
-                true ->
-                    client_handler:send_message(Sender#user.clientPid, utils:err_msg(cannotsendtochan, Sender, RecipientChannel));
-                false ->
-                    case lists:member($m, Channel#channel.mode) and not (lists:member(Sender#user.clientPid, Channel#channel.ops) or lists:member(Sender#user.clientPid, Channel#channel.voices)) of
-                        true ->
-                            client_handler:send_message(Sender#user.clientPid, utils:err_msg(cannotsendtochan, Sender, RecipientChannel));
-                        false ->
-                            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
-                            io:format("SENDING '~p'~n", [FinalMessage]),
-                            UserList = lists:delete(Sender#user.clientPid, Channel#channel.users),
-                            lists:foreach(fun(ClientPid) -> client_handler:send_message(ClientPid, FinalMessage) end, UserList)
-                    end
-            end
-    end.
-    
-send_raw_to_channel(Pid, RecipientChannel, Message) ->
-    case state:get_channel(Pid, RecipientChannel) of
-        false ->
-            io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientChannel]);
-        Channel ->
-            UserList = lists:map(fun(ClientPid) -> state:get_user(Pid, ClientPid) end, Channel#channel.users),
-            lists:foreach(fun(User) -> client_handler:send_message(User#user.clientPid, Message) end, UserList)
-    end.
     
 join(Pid, SenderPid, ChannelName) ->
     % TODO - check for valid channel name
@@ -307,6 +261,46 @@ whois(Pid, SenderPid, Nick) ->
     end.
     
 % Helper functions
+    
+send_to_user(Pid, Sender, RecipientNick, Message) ->
+    case state:get_user(Pid, RecipientNick) of
+        false ->
+            client_handler:send_message(Sender#user.clientPid, utils:err_msg(nosuchnick, Sender, RecipientNick));
+        Recipient ->
+            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Recipient#user.nick ++ " :" ++ Message ++ "\r\n",
+            io:format("SENDING '~p'~n", [FinalMessage]),
+            client_handler:send_message(Recipient#user.clientPid, FinalMessage)
+    end.
+    
+send_to_channel(Pid, Sender, RecipientChannel, Message) ->
+    case state:get_channel(Pid, RecipientChannel) of
+        false ->
+            client_handler:send_message(Sender#user.clientPid, utils:err_msg(nosuchnick, Sender, RecipientChannel));
+        Channel ->
+            case lists:member($n, Channel#channel.mode) and not lists:member(Sender#user.clientPid, Channel#channel.users) of
+                true ->
+                    client_handler:send_message(Sender#user.clientPid, utils:err_msg(cannotsendtochan, Sender, RecipientChannel));
+                false ->
+                    case lists:member($m, Channel#channel.mode) and not (lists:member(Sender#user.clientPid, Channel#channel.ops) or lists:member(Sender#user.clientPid, Channel#channel.voices)) of
+                        true ->
+                            client_handler:send_message(Sender#user.clientPid, utils:err_msg(cannotsendtochan, Sender, RecipientChannel));
+                        false ->
+                            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " PRIVMSG " ++ Channel#channel.name ++ " :" ++ Message ++ "\r\n",
+                            io:format("SENDING '~p'~n", [FinalMessage]),
+                            UserList = lists:delete(Sender#user.clientPid, Channel#channel.users),
+                            lists:foreach(fun(ClientPid) -> client_handler:send_message(ClientPid, FinalMessage) end, UserList)
+                    end
+            end
+    end.
+    
+send_raw_to_channel(Pid, RecipientChannel, Message) ->
+    case state:get_channel(Pid, RecipientChannel) of
+        false ->
+            io:format("CANNOT FIND RECIPIENT ~p~n", [RecipientChannel]);
+        Channel ->
+            UserList = lists:map(fun(ClientPid) -> state:get_user(Pid, ClientPid) end, Channel#channel.users),
+            lists:foreach(fun(User) -> client_handler:send_message(User#user.clientPid, Message) end, UserList)
+    end.
     
 user_can_join_channel(Pid, Sender, ChannelName) ->
     case state:get_channel(Pid, ChannelName) of

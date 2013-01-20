@@ -39,7 +39,7 @@ handle_info(send_ping, State) ->
 handle_info(ping_timeout, State) ->
     case element(3, State) of
         true ->
-            irc:quit(element(1, State), self(), "Ping timeout"),
+            handle_command("QUIT", ["Ping timeout"], State, Socket),
             gen_tcp:close(element(2, State)),
             gen_server:cast(self(), stop);
         false ->
@@ -65,7 +65,7 @@ handle_command("PONG", _, State, Socket) ->
 handle_command(Command, Params, State, Socket) ->
     case Command of
         "PRIVMSG" ->
-            irc:send_message(element(1, State), self(), lists:nth(1, Params), lists:nth(2, Params));
+            irc:privmsg(element(1, State), self(), lists:nth(1, Params), lists:nth(2, Params));
         "JOIN" ->
             irc:join(element(1, State), self(), lists:nth(1, Params));
         "PART" ->
