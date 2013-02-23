@@ -95,7 +95,7 @@ user({nick, Nick}, {ParentPid, Socket, ServerPid, _, Username, ClientHost, Serve
 finish({ParentPid, Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName}) ->
     % We're spawning the client handlers via the state service so they'll die if it falls over.
     ClientPid = state:spawn_handler(ServerPid, Socket),
-    state:add_user(ServerPid, #user{nick=Nick, clientPid=ClientPid, username=Username, clientHost=ClientHost, serverName=ServerName, realName=RealName}),
+    state:add_user(ServerPid, #user{nick=Nick, clientPid=ClientPid, username=Username, clientHost=ClientHost, serverName=ServerName, realName=RealName, lastActivityTime=erlang:localtime()}),
     io:format("Created client ~p~n", [ClientPid]),
     % Chance of losing messages before we switch controlling process? :-/
     ParentPid ! {stop, {ClientPid, Socket, Nick}},

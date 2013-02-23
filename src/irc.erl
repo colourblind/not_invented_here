@@ -4,7 +4,7 @@
 -include("records.hrl").
 
 -export([privmsg/4, unknown/3, join/3, part/3, names/3, list/2, mode/3, topic/3, quit/3, nick/3, userhost/3]).
--export([kick/3, whois/3]).
+-export([kick/3, whois/3, update_last_activity_time/2]).
 
 privmsg(Pid, SenderPid, Recipient, Message) ->
     Sender = state:get_user(Pid, SenderPid),
@@ -256,9 +256,15 @@ whois(Pid, SenderPid, Nick) ->
         false ->
             client_handler:send_message(SenderPid, utils:err_msg(nosuchnick, Sender, Nick));
         User ->
+            io:format("~p~n", [User]),
             client_handler:send_message(SenderPid, ":" ++ ?SERVER_NAME ++ " 311 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " " ++ User#user.username ++ " " ++ User#user.clientHost ++ " * :" ++ User#user.realName ++ "\r\n"),
+            client_handler:send_message(SenderPid, ":" ++ ?SERVER_NAME ++ " 317 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " " ++ integer_to_list(utils:date_diff_seconds(User#user.lastActivityTime, erlang:localtime())) ++ " :seconds idle\r\n"),
             client_handler:send_message(SenderPid, ":" ++ ?SERVER_NAME ++ " 318 " ++ Sender#user.nick ++ " :End of /WHOIS list\r\n")
     end.
+    
+update_last_activity_time(Pid, SenderPid) ->
+    Sender = state:get_user(Pid, SenderPid),
+    state:update_last_activity_time(Pid, Sender).
     
 % Helper functions
     

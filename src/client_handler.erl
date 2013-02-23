@@ -95,5 +95,6 @@ handle_command(Command, Params, State) ->
         Command ->
             irc:unknown(element(1, State), self(), Command)
     end,
+    irc:update_last_activity_time(element(1, State), self()),
     State.
         
