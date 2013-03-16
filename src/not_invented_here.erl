@@ -1,8 +1,27 @@
 -module(not_invented_here).
+-behaviour(application).
 
 -include("config.hrl").
 
 -export([start/0, start/1]).
+-export([start/2, stop/1, no_really_start/0]).
+
+start(normal, _) ->
+    case application:get_application() of
+        {ok, ApplicationName} ->
+            io:format("Starting application: ~p~n", [ApplicationName]),
+            start();
+        Error ->
+            Error
+    end.
+ 
+stop(_) ->
+    ok.
+    
+no_really_start() ->
+    % Since we can't use -run from the command line as it passes arguments
+    % in a list . . .
+    application:start(?MODULE).
 
 start() ->
     start(5678).
