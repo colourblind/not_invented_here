@@ -61,6 +61,11 @@ code_change(OldVsn, State, Extra) ->
 handle_command("PONG", _, State) ->
     erlang:send_after(?PING_INTERVAL, self(), send_ping),
     setelement(3, State, false);
+handle_command("QUIT", Params, State) ->
+    irc:quit(element(1, State), self(), lists:nth(1, Params)),
+    gen_tcp:close(element(2, State)),
+    gen_server:cast(self(), stop),
+    State;
 handle_command(Command, Params, State) ->
     case Command of
         "PRIVMSG" ->
@@ -85,10 +90,6 @@ handle_command(Command, Params, State) ->
             irc:kick(element(1, State), self(), Params);
         "WHOIS" ->
             irc:whois(element(1, State), self(), lists:nth(1, Params));
-        "QUIT" ->
-            irc:quit(element(1, State), self(), lists:nth(1, Params)),
-            gen_tcp:close(element(2, State)),
-            gen_server:cast(self(), stop);
         "PING" ->
             io:format("Reponding to client PING~n"),
             gen_tcp:send(element(2, State), "PONG :" ++ lists:nth(1, Params) ++ "\r\n");
