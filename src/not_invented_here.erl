@@ -1,8 +1,6 @@
 -module(not_invented_here).
 -behaviour(application).
 
--include("config.hrl").
-
 -export([start/0, start/1]).
 -export([start/2, stop/1, no_really_start/0]).
 
@@ -24,7 +22,7 @@ no_really_start() ->
     application:start(?MODULE).
 
 start() ->
-    start(5678).
+    start(cfg:listen_port()).
     
 start(Port) ->
     io:format("Starting up~n"),

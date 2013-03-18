@@ -39,9 +39,9 @@ loop(FsmPid) ->
                 {error, Reason} ->
                     io:format("Control for socket ~p transfer failed! ~p~n", [Socket, Reason])
             end,
-            gen_tcp:send(Socket, ":" ++ ?SERVER_NAME ++ " 001 " ++ Nick ++ " :Welcome to " ++ ?SERVER_NAME ++ "\r\n"),
-            gen_tcp:send(Socket, ":" ++ ?SERVER_NAME ++ " 002 " ++ Nick ++ " :Powered by not_invented_here\r\n"),
-            gen_tcp:send(Socket, ":" ++ ?SERVER_NAME ++ " 003 " ++ Nick ++ " :Y U NO WERK?!\r\n"),
+            gen_tcp:send(Socket, ":" ++ cfg:server_name() ++ " 001 " ++ Nick ++ " :Welcome to " ++ cfg:server_name() ++ "\r\n"),
+            gen_tcp:send(Socket, ":" ++ cfg:server_name() ++ " 002 " ++ Nick ++ " :Powered by not_invented_here\r\n"),
+            gen_tcp:send(Socket, ":" ++ cfg:server_name() ++ " 003 " ++ Nick ++ " :Y U NO WERK?!\r\n"),
             ok;
         Wut ->
             io:format("Message received: ~p~n", [Wut])
@@ -53,7 +53,7 @@ start({nick, Nick}, {ParentPid, Socket, ServerPid}) ->
         false ->
             {next_state, nick, {ParentPid, Socket, ServerPid, Nick}};
         _ ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 433 " ++ Nick ++ " Nickname is already in use\r\n",
+            FinalMessage = ":" ++ cfg:server_name() ++ " 433 " ++ Nick ++ " Nickname is already in use\r\n",
             gen_tcp:send(Socket, FinalMessage),
             {next_state, start, {ParentPid, Socket, ServerPid}}
     end;
@@ -87,7 +87,7 @@ user({nick, Nick}, {ParentPid, Socket, ServerPid, _, Username, ClientHost, Serve
         false ->
             finish({ParentPid, Socket, ServerPid, Nick, Username, ClientHost, ServerName, RealName});
         _ ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 433 " ++ Nick ++ " Nickname is already in use\r\n",
+            FinalMessage = ":" ++ cfg:server_name() ++ " 433 " ++ Nick ++ " Nickname is already in use\r\n",
             gen_tcp:send(Socket, FinalMessage),
             {next_state, user, {ParentPid, Socket, ServerPid, "", Username, ClientHost, ServerName, RealName}}
     end.

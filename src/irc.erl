@@ -1,6 +1,5 @@
 -module(irc).
 
--include("config.hrl").
 -include("records.hrl").
 
 -export([privmsg/4, unknown/3, join/3, part/3, names/3, list/2, mode/3, topic/3, quit/3, nick/3, userhost/3]).
@@ -56,17 +55,17 @@ names(Pid, SenderPid, ChannelName) ->
         Channel ->
             UserList = lists:map(fun(ClientPid) -> state:get_user(Pid, ClientPid) end, Channel#channel.users),
             NickList = lists:map(fun(User) -> utils:fix_nick(User, Channel#channel.ops, Channel#channel.voices) end, UserList),
-            client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 353 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ string:join(NickList, " ") ++ "\r\n")
+            client_handler:send_message(Sender#user.clientPid, ":" ++ cfg:server_name() ++ " 353 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ string:join(NickList, " ") ++ "\r\n")
     end,
-    client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 366 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :End of /NAMES list.\r\n").
+    client_handler:send_message(Sender#user.clientPid, ":" ++ cfg:server_name() ++ " 366 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :End of /NAMES list.\r\n").
     
 list(Pid, SenderPid) ->
     Sender = state:get_user(Pid, SenderPid),
     ChannelList = state:get_channels(Pid),
     io:format("~p~n", [ChannelList]),
-    client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 321 " ++ Sender#user.nick ++ " Channel :Users  Name\r\n"),
-    lists:foreach(fun(Channel) -> client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 322 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " " ++ integer_to_list(length(Channel#channel.users)) ++ " :" ++ Channel#channel.topic ++ "\r\n") end, ChannelList),
-    client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 323 " ++ Sender#user.nick ++ " :End of /LIST\r\n").
+    client_handler:send_message(Sender#user.clientPid, ":" ++ cfg:server_name() ++ " 321 " ++ Sender#user.nick ++ " Channel :Users  Name\r\n"),
+    lists:foreach(fun(Channel) -> client_handler:send_message(Sender#user.clientPid, ":" ++ cfg:server_name() ++ " 322 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " " ++ integer_to_list(length(Channel#channel.users)) ++ " :" ++ Channel#channel.topic ++ "\r\n") end, ChannelList),
+    client_handler:send_message(Sender#user.clientPid, ":" ++ cfg:server_name() ++ " 323 " ++ Sender#user.nick ++ " :End of /LIST\r\n").
 
 mode(Pid, SenderPid, Params) when length(Params) == 1 ->
     ChannelName = hd(Params),
@@ -75,7 +74,7 @@ mode(Pid, SenderPid, Params) when length(Params) == 1 ->
         false ->
             client_handler:send_message(SenderPid, utils:err_msg(nosuchchannel, Sender, hd(Params)));
         Channel ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 324 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " +" ++ Channel#channel.mode ++ "\r\n",
+            FinalMessage = ":" ++ cfg:server_name() ++ " 324 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " +" ++ Channel#channel.mode ++ "\r\n",
             client_handler:send_message(SenderPid, FinalMessage)
     end;
 mode(Pid, SenderPid, [ChannelName, "+b"]) ->
@@ -84,8 +83,8 @@ mode(Pid, SenderPid, [ChannelName, "+b"]) ->
         false ->
             client_handler:send_message(SenderPid, utils:err_msg(nosuchchannel, Sender, ChannelName));
         Channel ->
-            lists:foreach(fun(Banmask) -> client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 367 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " " ++ Banmask ++ "\r\n") end, Channel#channel.bans),
-            client_handler:send_message(Sender#user.clientPid, ":" ++ ?SERVER_NAME ++ " 368 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " :End of channel ban list\r\n")
+            lists:foreach(fun(Banmask) -> client_handler:send_message(Sender#user.clientPid, ":" ++ cfg:server_name() ++ " 367 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " " ++ Banmask ++ "\r\n") end, Channel#channel.bans),
+            client_handler:send_message(Sender#user.clientPid, ":" ++ cfg:server_name() ++ " 368 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " :End of channel ban list\r\n")
     end;
 mode(Pid, SenderPid, Params) when length(Params) == 2 ->
     Sender = state:get_user(Pid, SenderPid),
@@ -169,9 +168,9 @@ topic(Pid, SenderPid, Params) when length(Params) == 1 ->
         Channel ->
             case Channel#channel.topic of
                 "" ->
-                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 331 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No topic is set\r\n";
+                    FinalMessage = ":" ++ cfg:server_name() ++ " 331 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No topic is set\r\n";
                 T ->
-                    FinalMessage = ":" ++ ?SERVER_NAME ++ " 332 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ T ++ "\r\n"
+                    FinalMessage = ":" ++ cfg:server_name() ++ " 332 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :" ++ T ++ "\r\n"
             end
     end,
     client_handler:send_message(SenderPid, FinalMessage);
@@ -221,7 +220,7 @@ userhost(Pid, SenderPid, NewNick) ->
             % Dunno what to do here. RFC1459 doesn't say :-/
             ok;
         User ->
-            FinalMessage = ":" ++ ?SERVER_NAME ++ " 302 " ++ Sender#user.nick ++ " :" ++ User#user.nick ++ "=+~" ++ User#user.username ++ "@" ++ User#user.clientHost ++ "\r\n",
+            FinalMessage = ":" ++ cfg:server_name() ++ " 302 " ++ Sender#user.nick ++ " :" ++ User#user.nick ++ "=+~" ++ User#user.username ++ "@" ++ User#user.clientHost ++ "\r\n",
             client_handler:send_message(SenderPid, FinalMessage)
     end.
     
@@ -257,9 +256,9 @@ whois(Pid, SenderPid, Nick) ->
             client_handler:send_message(SenderPid, utils:err_msg(nosuchnick, Sender, Nick));
         User ->
             io:format("~p~n", [User]),
-            client_handler:send_message(SenderPid, ":" ++ ?SERVER_NAME ++ " 311 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " " ++ User#user.username ++ " " ++ User#user.clientHost ++ " * :" ++ User#user.realName ++ "\r\n"),
-            client_handler:send_message(SenderPid, ":" ++ ?SERVER_NAME ++ " 317 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " " ++ integer_to_list(utils:date_diff_seconds(User#user.lastActivityTime, erlang:localtime())) ++ " :seconds idle\r\n"),
-            client_handler:send_message(SenderPid, ":" ++ ?SERVER_NAME ++ " 318 " ++ Sender#user.nick ++ " :End of /WHOIS list\r\n")
+            client_handler:send_message(SenderPid, ":" ++ cfg:server_name() ++ " 311 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " " ++ User#user.username ++ " " ++ User#user.clientHost ++ " * :" ++ User#user.realName ++ "\r\n"),
+            client_handler:send_message(SenderPid, ":" ++ cfg:server_name() ++ " 317 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " " ++ integer_to_list(utils:date_diff_seconds(User#user.lastActivityTime, erlang:localtime())) ++ " :seconds idle\r\n"),
+            client_handler:send_message(SenderPid, ":" ++ cfg:server_name() ++ " 318 " ++ Sender#user.nick ++ " :End of /WHOIS list\r\n")
     end.
     
 update_last_activity_time(Pid, SenderPid) ->
