@@ -1,7 +1,6 @@
 -module(handshake).
 -bahaviour(gen_fsm).
 
--include("config.hrl").
 -include("records.hrl").
 
 -export([start_link/2]).
