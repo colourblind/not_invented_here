@@ -240,7 +240,13 @@ kick(Pid, SenderPid, Params) ->
                         User ->
                             state:part_channel(Pid, Channel#channel.name, User),
                             % Todo message
-                            FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " KICK " ++ ChannelName ++ " :" ++ User#user.nick ++ "\r\n",
+                            % TODO: NOTONCHANNEL
+                            case length(Params) > 2 of
+                                true ->
+                                    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " KICK " ++ ChannelName ++ " " ++ User#user.nick ++ " :" ++ lists:nth(3, Params) ++ "\r\n";
+                                false ->
+                                    FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " KICK " ++ ChannelName ++ " " ++ User#user.nick ++ "\r\n"
+                            end,
                             send_raw_to_channel(Pid, ChannelName, FinalMessage),
                             client_handler:send_message(User#user.clientPid, FinalMessage)
                     end;
