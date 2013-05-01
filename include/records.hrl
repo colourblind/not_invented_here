@@ -1,2 +1,2 @@
 -record(channel, {name, topic, users, mode, ops, voices, bans}).
--record(user, {nick, clientPid, username, clientHost, serverName, realName}).
+-record(user, {nick, clientPid, username, clientHost, serverName, realName, lastActivityTime}).

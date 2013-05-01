@@ -1,8 +1,6 @@
 -module(client_handler).
 -behaviour(gen_server).
 
--include("config.hrl").
-
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([send_message/2, start_link/2]).
 
@@ -14,7 +12,7 @@ start_link(ServerPid, Socket) ->
 
 init({ServerPid, Socket}) ->
     io:format("Initialising client_handler!~nState: ~p~nSocket ~p~n", [ServerPid, Socket]),
-    erlang:send_after(?PING_INTERVAL, self(), send_ping),
+    erlang:send_after(cfg:ping_interval(), self(), send_ping),
     {ok, {ServerPid, Socket, false}}.
 
 handle_call(Request, {Pid, Tag}, State) ->
@@ -33,8 +31,8 @@ handle_info({tcp, Socket, Data}, State) ->
     Command = utils:get_client_command(Data),
     {noreply, handle_command(Command, Params, State)};
 handle_info(send_ping, State) ->
-    gen_tcp:send(element(2, State), "PING :" ++ ?SERVER_NAME ++ "\r\n"),
-    erlang:send_after(?PING_TIMEOUT, self(), ping_timeout),
+    gen_tcp:send(element(2, State), "PING :" ++ cfg:server_name() ++ "\r\n"),
+    erlang:send_after(cfg:ping_timeout(), self(), ping_timeout),
     {noreply, setelement(3, State, true)};
 handle_info(ping_timeout, State) ->
     case element(3, State) of
@@ -59,8 +57,13 @@ code_change(OldVsn, State, Extra) ->
     {ok, State}.
     
 handle_command("PONG", _, State) ->
-    erlang:send_after(?PING_INTERVAL, self(), send_ping),
+    erlang:send_after(cfg:ping_interval(), self(), send_ping),
     setelement(3, State, false);
+handle_command("QUIT", Params, State) ->
+    irc:quit(element(1, State), self(), lists:nth(1, Params)),
+    gen_tcp:close(element(2, State)),
+    gen_server:cast(self(), stop),
+    State;
 handle_command(Command, Params, State) ->
     case Command of
         "PRIVMSG" ->
@@ -85,15 +88,12 @@ handle_command(Command, Params, State) ->
             irc:kick(element(1, State), self(), Params);
         "WHOIS" ->
             irc:whois(element(1, State), self(), lists:nth(1, Params));
-        "QUIT" ->
-            irc:quit(element(1, State), self(), lists:nth(1, Params)),
-            gen_tcp:close(element(2, State)),
-            gen_server:cast(self(), stop);
         "PING" ->
             io:format("Reponding to client PING~n"),
             gen_tcp:send(element(2, State), "PONG :" ++ lists:nth(1, Params) ++ "\r\n");
         Command ->
             irc:unknown(element(1, State), self(), Command)
     end,
+    irc:update_last_activity_time(element(1, State), self()),
     State.
         

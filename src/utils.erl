@@ -1,12 +1,11 @@
 -module(utils).
 
--include("config.hrl").
 -include("records.hrl").
 
 -export([get_server_prefix/1, get_server_command/1, get_server_params/1]).
 -export([get_client_command/1, get_client_params/1]).
 -export([get_user_prefix/1, resolve_mode/2, fix_nick/3, err_msg/3]).
--export([replace/3, date_diff/2, match_hostmask/2]).
+-export([replace/3, date_diff/2, date_diff_seconds/2, match_hostmask/2]).
 
 get_server_prefix(Message) ->
     hd(string:tokens(Message, " ")).
@@ -54,19 +53,19 @@ fix_nick(User, OpList, VoiceList) ->
     end.
     
 err_msg(nosuchnick, Sender, ChannelName) ->
-    ":" ++ ?SERVER_NAME ++ " 401 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such nick/channel\r\n";
+    ":" ++ cfg:server_name() ++ " 401 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such nick/channel\r\n";
 err_msg(nosuchchannel, Sender, ChannelName) ->
-    ":" ++ ?SERVER_NAME ++ " 403 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such channel\r\n";
+    ":" ++ cfg:server_name() ++ " 403 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :No such channel\r\n";
 err_msg(cannotsendtochan, Sender, ChannelName) ->
-    ":" ++ ?SERVER_NAME ++ " 404 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :Cannot send to channel\r\n";
+    ":" ++ cfg:server_name() ++ " 404 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :Cannot send to channel\r\n";
 err_msg(unknowncommand, Sender, Command) ->
-    ":" ++ ?SERVER_NAME ++ " 421 " ++ Sender#user.nick ++ " " ++ Command ++ " :Unknown command\r\n";
+    ":" ++ cfg:server_name() ++ " 421 " ++ Sender#user.nick ++ " " ++ Command ++ " :Unknown command\r\n";
 err_msg(nicknameinuse, Sender, Nick) ->
-    ":" ++ ?SERVER_NAME ++ " 433 " ++ Sender#user.nick ++ " " ++ Nick ++ " Nickname is already in use\r\n";
+    ":" ++ cfg:server_name() ++ " 433 " ++ Sender#user.nick ++ " " ++ Nick ++ " Nickname is already in use\r\n";
 err_msg(bannedfromchan, Sender, ChannelName) ->
-    ":" ++ ?SERVER_NAME ++ " 474 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :Cannot join channel (+b)\r\n";
+    ":" ++ cfg:server_name() ++ " 474 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :Cannot join channel (+b)\r\n";
 err_msg(chanoprivsneeded, Sender, ChannelName) ->
-    ":" ++ ?SERVER_NAME ++ " 482 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :You're not channel operator\r\n".
+    ":" ++ cfg:server_name() ++ " 482 " ++ Sender#user.nick ++ " " ++ ChannelName ++ " :You're not channel operator\r\n".
 
 reconstruct([]) ->
     [];
@@ -123,3 +122,9 @@ date_diff(T1, T2) ->
     S1 = calendar:datetime_to_gregorian_seconds(T1),
     S2 = calendar:datetime_to_gregorian_seconds(T2),
     calendar:seconds_to_daystime(S2 - S1).
+    
+date_diff_seconds(T1, T2) ->
+    S1 = calendar:datetime_to_gregorian_seconds(T1),
+    S2 = calendar:datetime_to_gregorian_seconds(T2),
+    S2 - S1.
+    

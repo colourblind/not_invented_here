@@ -7,7 +7,7 @@
 -export([get_user/2, get_channel/2, get_channels/1, get_channels_for_user/2]).
 -export([add_user/2, remove_user/2, join_channel/3, part_channel/3, change_nick/3]).
 -export([set_channel_mode/3, set_chanop/3, remove_chanop/3, set_voice/3, remove_voice/3]).
--export([set_ban/3, remove_ban/3, set_topic/3]).
+-export([set_ban/3, remove_ban/3, set_topic/3, update_last_activity_time/2]).
 -export([start_link/0, spawn_handler/2]).
 
 get_user(Pid, Id) ->
@@ -60,6 +60,9 @@ remove_ban(Pid, Channel, Hostmask) ->
     
 set_topic(Pid, Channel, NewTopic) ->
     gen_server:call(Pid, {set_topic, Channel, NewTopic}).
+    
+update_last_activity_time(Pid, Sender) ->
+    gen_server:cast(Pid, {update_last_activity_time, Sender}).
 
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
@@ -168,6 +171,10 @@ handle_call(Request, _, State) ->
     io:format("HANDLE_CALL: ~p~n", [Request]),
     {noreply, State}.
     
+handle_cast({update_last_activity_time, User}, State) ->
+    NewUser = User#user{lastActivityTime=erlang:localtime()},
+    NewUserList = lists:keyreplace(User#user.clientPid, 3, element(1, State), NewUser),
+    {noreply, {NewUserList, element(2, State)}};
 handle_cast(_, State) ->
     {noreply, State}.
 

@@ -2,13 +2,7 @@
 echo Building app . . .
 call build
 echo Copying binaries . . .
-copy ebin\*.beam tests > nul
-
-echo Building tests . . .
-pushd tests
-if exist "%ProgramFiles(x86)%" "%ProgramFiles(x86)%\erl5.9\bin\erlc" -I ..\include state_tests.erl utils_tests.erl
-if not exist "%ProgramFiles(x86)%" "%ProgramFiles%\erl5.9\bin\erlc" -I ..\include state_tests.erl utils_tests.erl
-popd
+copy ebin\*.beam tests
 
 echo Running . . .
 
