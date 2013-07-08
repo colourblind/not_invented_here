@@ -157,7 +157,10 @@ mode(Pid, Sender, $b, Channel, Params) ->
             state:remove_ban(Pid, Channel, Hostmask),
             FinalMessage = ":" ++ utils:get_user_prefix(Sender) ++ " MODE " ++ Channel#channel.name ++ " -b " ++ Hostmask ++ "\r\n"
     end,
-    send_raw_to_channel(Pid, Channel#channel.name, FinalMessage).
+    send_raw_to_channel(Pid, Channel#channel.name, FinalMessage);
+mode(_, _, _, _, _) ->
+    % Don't care, just don't function_clause out.
+	ok.
     
 topic(Pid, SenderPid, Params) when length(Params) == 1 ->
     ChannelName = hd(Params),
