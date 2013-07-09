@@ -1,6 +1,7 @@
 -module(cfg).
 
--export([listen_port/0, server_name/0, ping_interval/0, ping_timeout/0]).
+-export([listen_port/0, server_name/0, ping_interval/0, ping_timeout/0, throttle_bleed_period/0]).
+-export([throttle_threshold/0]).
 -export([test/0]).
 
 listen_port() ->
@@ -17,6 +18,14 @@ ping_interval() ->
 
 ping_timeout() ->
     {ok, Val} = application:get_env(ping_timeout),
+    Val.
+    
+throttle_bleed_period() ->
+    {ok, Val} = application:get_env(throttle_bleed_period),
+    Val.
+    
+throttle_threshold() ->
+    {ok, Val} = application:get_env(throttle_threshold),
     Val.
 
 test() ->
