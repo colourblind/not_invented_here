@@ -56,7 +56,7 @@ handle_info(ping_timeout, State) ->
     end,
     {noreply, State};
 handle_info(throttle_clear, State) ->
-    io:format("Clearing throttle queue~n"),
+    %io:format("Clearing throttle queue~n"),
     case element(5, State) of
         0 ->
             NewValue = 0;
