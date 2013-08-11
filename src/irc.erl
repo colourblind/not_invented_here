@@ -264,10 +264,12 @@ whois(Pid, SenderPid, Nick) ->
         false ->
             client_handler:send_message(SenderPid, utils:err_msg(nosuchnick, Sender, Nick));
         User ->
-            io:format("~p~n", [User]),
+            AllChannels = state:get_channels(Pid),
+            ChannelList = lists:filtermap(fun(Channel) -> case lists:member(User#user.clientPid, Channel#channel.users) of true -> {true, Channel#channel.name}; _ -> false end end, AllChannels),
             client_handler:send_message(SenderPid, ":" ++ cfg:server_name() ++ " 311 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " " ++ User#user.username ++ " " ++ User#user.clientHost ++ " * :" ++ User#user.realName ++ "\r\n"),
+            client_handler:send_message(SenderPid, ":" ++ cfg:server_name() ++ " 319 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " :" ++ string:join(ChannelList, " ") ++ "\r\n"),
             client_handler:send_message(SenderPid, ":" ++ cfg:server_name() ++ " 317 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " " ++ integer_to_list(utils:date_diff_seconds(User#user.lastActivityTime, erlang:localtime())) ++ " :seconds idle\r\n"),
-            client_handler:send_message(SenderPid, ":" ++ cfg:server_name() ++ " 318 " ++ Sender#user.nick ++ " :End of /WHOIS list\r\n")
+            client_handler:send_message(SenderPid, ":" ++ cfg:server_name() ++ " 318 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " :End of /WHOIS list\r\n")
     end.
     
 update_last_activity_time(Pid, SenderPid) ->
