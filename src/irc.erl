@@ -61,7 +61,8 @@ names(Pid, SenderPid, ChannelName) ->
     
 list(Pid, SenderPid) ->
     Sender = state:get_user(Pid, SenderPid),
-    ChannelList = state:get_channels(Pid),
+    AllChannels = state:get_channels(Pid),
+    ChannelList = lists:filter(fun(Channel) -> not lists:member($s, Channel#channel.mode) end, AllChannels),
     io:format("~p~n", [ChannelList]),
     client_handler:send_message(Sender#user.clientPid, ":" ++ cfg:server_name() ++ " 321 " ++ Sender#user.nick ++ " Channel :Users  Name\r\n"),
     lists:foreach(fun(Channel) -> client_handler:send_message(Sender#user.clientPid, ":" ++ cfg:server_name() ++ " 322 " ++ Sender#user.nick ++ " " ++ Channel#channel.name ++ " " ++ integer_to_list(length(Channel#channel.users)) ++ " :" ++ Channel#channel.topic ++ "\r\n") end, ChannelList),
@@ -265,7 +266,7 @@ whois(Pid, SenderPid, Nick) ->
             client_handler:send_message(SenderPid, utils:err_msg(nosuchnick, Sender, Nick));
         User ->
             AllChannels = state:get_channels(Pid),
-            ChannelList = lists:filtermap(fun(Channel) -> case lists:member(User#user.clientPid, Channel#channel.users) of true -> {true, Channel#channel.name}; _ -> false end end, AllChannels),
+            ChannelList = lists:filtermap(fun(Channel) -> case lists:member(User#user.clientPid, Channel#channel.users) and not lists:member($s, Channel#channel.mode) of true -> {true, Channel#channel.name}; _ -> false end end, AllChannels),
             client_handler:send_message(SenderPid, ":" ++ cfg:server_name() ++ " 311 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " " ++ User#user.username ++ " " ++ User#user.clientHost ++ " * :" ++ User#user.realName ++ "\r\n"),
             client_handler:send_message(SenderPid, ":" ++ cfg:server_name() ++ " 319 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " :" ++ string:join(ChannelList, " ") ++ "\r\n"),
             client_handler:send_message(SenderPid, ":" ++ cfg:server_name() ++ " 317 " ++ Sender#user.nick ++ " " ++ User#user.nick ++ " " ++ integer_to_list(utils:date_diff_seconds(User#user.lastActivityTime, erlang:localtime())) ++ " :seconds idle\r\n"),
